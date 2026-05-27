@@ -398,11 +398,12 @@ async function fetchEmbedStatus(env) {
     let maxPlayers = SERVER_META[id].maxPlayers;
 
     if (live) {
-      restarting = live.RestartTimer != null && live.RestartTimer <= 90;
+      const ageSec      = (now - new Date(live.LastHeartbeatDateTime).getTime()) / 1000;
+      const heartbeatFresh = ageSec < 120; // 2 min grace period covers restart window
+      restarting = heartbeatFresh && playerCounts[id] === 0;
+      online     = playerCounts[id] > 0 || restarting;
       maxPlayers = live.MaxPlayers || maxPlayers;
     }
-    // Use player count as source of truth — LastHeartbeatDateTime is unreliable
-    online = playerCounts[id] > 0;
 
     status[id] = {
       online,
@@ -523,7 +524,7 @@ async function handleEmbed(serverId, request, env) {
 //   4. Build SVG → resvg-wasm → PNG → store in KV → return.
 // =============================================================================
 async function handleEmbedImage(serverId, request, env) {
-  // /embed-image/purge — wipe all cached SVGs and regenerate fresh
+  // /embed-image/purge — wipe all cached SVGs
   if (new URL(request.url).pathname === '/embed-image/purge') {
     await Promise.all([
       env.CNR_CACHE.delete('embed-svg-v1:overview'),
@@ -534,15 +535,30 @@ async function handleEmbedImage(serverId, request, env) {
     return new Response('cache purged', { headers: { 'Content-Type': 'text/plain' } });
   }
 
+  // Redirect to weserv using a stable public SVG URL so weserv can fetch it
+  const svgUrl = `https://cnr.ysb.one/embed-svg${serverId ? '/' + serverId.toLowerCase() : ''}`;
+  const pngUrl = `https://images.weserv.nl/?url=${encodeURIComponent(svgUrl)}&output=png&w=1200&h=630`;
+  return Response.redirect(pngUrl, 302);
+}
+
+// =============================================================================
+// Embed SVG endpoint  GET /embed-svg  or  GET /embed-svg/na1
+// Returns the raw SVG — called by weserv.nl to convert to PNG
+// =============================================================================
+async function handleEmbedSvg(serverId, env) {
   const kvKey = `embed-svg-v1:${serverId || 'overview'}`;
 
   // ── 1. Check KV cache (10 min TTL) ──────────────────────────────────────────
   try {
     const cachedSvg = await env.CNR_CACHE.get(kvKey, 'text');
     if (cachedSvg) {
-      const b64    = btoa(unescape(encodeURIComponent(cachedSvg)));
-      const pngUrl = `https://images.weserv.nl/?url=${encodeURIComponent('data:image/svg+xml;base64,' + b64)}&output=png&w=1200&h=630`;
-      return Response.redirect(pngUrl, 302);
+      return new Response(cachedSvg, {
+        headers: {
+          'Content-Type':                'image/svg+xml',
+          'Cache-Control':               `public, max-age=${TTL.embedImage}`,
+          'Access-Control-Allow-Origin': '*',
+        },
+      });
     }
   } catch { /* miss — fall through */ }
 
@@ -555,16 +571,19 @@ async function handleEmbedImage(serverId, request, env) {
     ? buildSingleSvg(serverId, status[serverId])
     : buildOverviewSvg(status);
 
-  // ── 4. Cache SVG in KV for 10 min if data is real ───────────────────────────
+  // ── 4. Cache in KV for 10 min if data is real ────────────────────────────────
   if (hasRealData) {
     await env.CNR_CACHE.put(kvKey, svg, { expirationTtl: TTL.embedImage })
-      .catch(e => console.error('embed-image: KV write failed', e.message));
+      .catch(e => console.error('embed-svg: KV write failed', e.message));
   }
 
-  // ── 5. Convert SVG → PNG via images.weserv.nl and redirect ──────────────────
-  const b64    = btoa(unescape(encodeURIComponent(svg)));
-  const pngUrl = `https://images.weserv.nl/?url=${encodeURIComponent('data:image/svg+xml;base64,' + b64)}&output=png&w=1200&h=630`;
-  return Response.redirect(pngUrl, 302);
+  return new Response(svg, {
+    headers: {
+      'Content-Type':                'image/svg+xml',
+      'Cache-Control':               `public, max-age=${TTL.embedImage}`,
+      'Access-Control-Allow-Origin': '*',
+    },
+  });
 }
 
 // =============================================================================
@@ -797,6 +816,14 @@ async function handleRequest(request, env) {
     const raw      = (embedImageMatch[1] || '').toUpperCase();
     const serverId = SERVER_META[raw] ? raw : null;
     return handleEmbedImage(serverId, request, env);
+  }
+
+  // ── Embed SVG endpoint (fetched by weserv to convert to PNG) ──────────────
+  const embedSvgMatch = url.pathname.match(/^\/embed-svg\/?([a-z0-9]*)$/i);
+  if (embedSvgMatch) {
+    const raw      = (embedSvgMatch[1] || '').toUpperCase();
+    const serverId = SERVER_META[raw] ? raw : null;
+    return handleEmbedSvg(serverId, env);
   }
   // ─────────────────────────────────────────────────────────────────────────
 
