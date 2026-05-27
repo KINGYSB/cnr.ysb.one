@@ -12,9 +12,6 @@
 //   globs = ["**/*.html"]
 //   fallthrough = true
 import cnrHtmlRaw from './cnr.html';
-import { Resvg } from '@resvg/resvg-wasm';
-import resvgWasm from '@resvg/resvg-wasm/index_bg.wasm';
-
 // Patch the HTML for cnr.ysb.one context:
 //   1. Update og:url and logo tag
 //   2. Inject a tiny script that converts /na1 paths → #/na1 hash so the SPA
@@ -38,15 +35,6 @@ const CNR_HTML = cnrHtmlRaw
 </head>`
   );
 
-const USE_SCREENSHOT_FALLBACK = false; // flip to true if you skip npm i @resvg/resvg-wasm
-
-let resvgReady = false;
-async function initResvg() {
-  if (!resvgReady) {
-    await Resvg.initWasm(resvgWasm);
-    resvgReady = true;
-  }
-}
 
 // =============================================================================
 // Existing config (unchanged)
@@ -535,87 +523,48 @@ async function handleEmbed(serverId, request, env) {
 //   4. Build SVG → resvg-wasm → PNG → store in KV → return.
 // =============================================================================
 async function handleEmbedImage(serverId, request, env) {
-  // /embed-image/purge — wipe all cached PNGs and regenerate fresh
+  // /embed-image/purge — wipe all cached SVGs and regenerate fresh
   if (new URL(request.url).pathname === '/embed-image/purge') {
     await Promise.all([
-      env.CNR_CACHE.delete('embed-png-v1:overview'),
-      env.CNR_CACHE.delete('embed-png-v1:NA1'),
-      env.CNR_CACHE.delete('embed-png-v1:NA2'),
-      env.CNR_CACHE.delete('embed-png-v1:EU1'),
+      env.CNR_CACHE.delete('embed-svg-v1:overview'),
+      env.CNR_CACHE.delete('embed-svg-v1:NA1'),
+      env.CNR_CACHE.delete('embed-svg-v1:NA2'),
+      env.CNR_CACHE.delete('embed-svg-v1:EU1'),
     ]);
-    return new Response('cache purged — next /embed-image request will regenerate', {
-      headers: { 'Content-Type': 'text/plain' },
-    });
+    return new Response('cache purged', { headers: { 'Content-Type': 'text/plain' } });
   }
 
-  if (USE_SCREENSHOT_FALLBACK) {
-    const target  = `${SITE_SPA}${serverId ? `?__s=${serverId}` : ''}`;
-    const thumUrl = `https://image.thum.io/get/width/1200/crop/630/noanimate/${encodeURIComponent(target)}`;
-    return Response.redirect(thumUrl, 302);
-  }
+  const kvKey = `embed-svg-v1:${serverId || 'overview'}`;
 
-  const kvKey      = `embed-png-v1:${serverId || 'overview'}`;
-  const pngHeaders = {
-    'Content-Type':  'image/png',
-    'Cache-Control': `public, max-age=${TTL.embedImage}`,
-  };
-
-  // ── 1. Serve cached PNG if it exists in KV (KV auto-expires it after 10 min)
+  // ── 1. Check KV cache (10 min TTL) ──────────────────────────────────────────
   try {
-    const cached = await env.CNR_CACHE.get(kvKey, 'arrayBuffer');
-    if (cached && cached.byteLength > 0) {
-      return new Response(cached, { headers: pngHeaders });
+    const cachedSvg = await env.CNR_CACHE.get(kvKey, 'text');
+    if (cachedSvg) {
+      const b64    = btoa(unescape(encodeURIComponent(cachedSvg)));
+      const pngUrl = `https://images.weserv.nl/?url=${encodeURIComponent('data:image/svg+xml;base64,' + b64)}&output=png&w=1200&h=630`;
+      return Response.redirect(pngUrl, 302);
     }
-  } catch { /* KV miss — fall through */ }
+  } catch { /* miss — fall through */ }
 
-  // ── 2. Fetch live status (all servers + player counts in parallel)
+  // ── 2. Fetch live status ─────────────────────────────────────────────────────
   const status = await fetchEmbedStatus(env);
-
-  // ── 3. Sanity check — did we get real data?
-  // If every server is showing 0 players AND offline, the upstream is probably
-  // completely unreachable.  Don't overwrite a good cached card with a dead one.
   const hasRealData = Object.values(status).some(s => s.online || s.players > 0);
-  if (!hasRealData) {
-    // Try to serve whatever stale PNG we still have from a previous good fetch
-    try {
-      const stale = await env.CNR_CACHE.get(kvKey, 'arrayBuffer');
-      if (stale && stale.byteLength > 0) {
-        console.warn('embed-image: upstream returned no data — serving stale PNG');
-        return new Response(stale, { headers: pngHeaders });
-      }
-    } catch {}
-    // No stale either — render the card with whatever zeros we got
-    console.warn('embed-image: no real data and no stale PNG — rendering cold card');
-  }
 
-  // ── 4. Build SVG
+  // ── 3. Build SVG ─────────────────────────────────────────────────────────────
   const svg = serverId && status[serverId]
     ? buildSingleSvg(serverId, status[serverId])
     : buildOverviewSvg(status);
 
-  // ── 5. SVG → PNG via resvg-wasm, store in KV, return
-  try {
-    await initResvg();
-    const resvg = new Resvg(svg, { fitTo: { mode: 'width', value: 1200 } });
-    const png   = resvg.render().asPng();
-
-    // Only cache to KV if the data looked real — prevents a bad 10-min window
-    if (hasRealData) {
-      await env.CNR_CACHE.put(kvKey, png, { expirationTtl: TTL.embedImage })
-        .catch(e => console.error('embed-image: KV write failed', e.message));
-    }
-
-    return new Response(png, { headers: pngHeaders });
-  } catch (e) {
-    // resvg not installed — serve raw SVG (Discord won't render it but won't crash)
-    console.error('resvg unavailable:', e.message);
-    return new Response(svg, {
-      headers: {
-        'Content-Type':  'image/svg+xml',
-        'Cache-Control': `public, max-age=${TTL.embed}`,
-      },
-    });
+  // ── 4. Cache SVG in KV for 10 min if data is real ───────────────────────────
+  if (hasRealData) {
+    await env.CNR_CACHE.put(kvKey, svg, { expirationTtl: TTL.embedImage })
+      .catch(e => console.error('embed-image: KV write failed', e.message));
   }
+
+  // ── 5. Convert SVG → PNG via images.weserv.nl and redirect ──────────────────
+  const b64    = btoa(unescape(encodeURIComponent(svg)));
+  const pngUrl = `https://images.weserv.nl/?url=${encodeURIComponent('data:image/svg+xml;base64,' + b64)}&output=png&w=1200&h=630`;
+  return Response.redirect(pngUrl, 302);
 }
 
 // =============================================================================
