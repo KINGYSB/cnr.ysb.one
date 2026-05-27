@@ -11,6 +11,10 @@
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://ysb.one">
 <link rel="icon" type="image/png" href="images/favicon.png">
+<link rel="manifest" href="/manifest.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="CNR Tracker">
 
 <script>
   // set theme early to prevent flash of wrong theme
@@ -25,6 +29,12 @@
 </script>
 
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="dns-prefetch" href="https://api.gtacnr.net">
+<link rel="dns-prefetch" href="https://gtacnr.net">
+<link rel="dns-prefetch" href="https://cnr.ysb.one">
+<link rel="dns-prefetch" href="https://servers-frontend.fivem.net">
+<link rel="preconnect" href="https://api.gtacnr.net" crossorigin>
+<link rel="preconnect" href="https://cnr.ysb.one" crossorigin>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/bebas-neue@5.0.0/index.css" media="print" onload="this.media='all'">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/ibm-plex-sans@5.0.0/index.css" media="print" onload="this.media='all'">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/jetbrains-mono@5.0.0/index.css" media="print" onload="this.media='all'">
@@ -1077,6 +1087,33 @@ body.is-loading .app textarea {
   outline-offset: 2px;
 }
 
+/* ---------- Offline banner ---------- */
+.offline-banner {
+  position: fixed;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(239,68,68,0.12);
+  border: 0.5px solid rgba(239,68,68,0.4);
+  border-radius: var(--radius);
+  padding: 10px 18px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: #fca5a5;
+  z-index: 9999;
+  display: none;
+  align-items: center;
+  gap: 10px;
+  white-space: nowrap;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.4);
+}
+.offline-banner.visible { display: flex; }
+.offline-banner-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: #ef4444; flex-shrink: 0;
+  animation: pulse-loading 1.4s ease-in-out infinite;
+}
+
 /* ---------- Footer ---------- */
 .footer {
   margin-top: 50px;
@@ -1138,11 +1175,15 @@ body.is-loading .app textarea {
 </head>
 <body>
 <div class="top-loader" id="top-loader"></div>
+<div class="offline-banner" id="offline-banner">
+  <span class="offline-banner-dot"></span>
+  <span>You're offline — showing last known data</span>
+</div>
 <div class="app" id="app">
   <header class="header">
     <a class="brand" data-nav="/">
       <div class="logo">CNR<span class="logo-accent">TRACKER</span></div>
-      <div class="logo-tag">ysb.one/utils/cnr</div>
+      <div class="logo-tag">cnr.ysb.one</div>
     </a>
     <nav class="nav" id="nav">
       <a data-nav="/" id="nav-servers">Servers</a>
@@ -1160,7 +1201,7 @@ body.is-loading .app textarea {
   <main id="view"></main>
   <footer class="footer">
     <div class="footer-left">
-      <span>cnrtracker · ysb.one/utils/cnr</span>
+      <span>cnrtracker · cnr.ysb.one</span>
       <span class="footer-sep">·</span>
       <span>data from <a href="https://gtacnr.net" target="_blank" rel="noopener">gtacnr.net</a> &amp; <a href="https://fivem.net" target="_blank" rel="noopener">fivem.net</a></span>
     </div>
@@ -1533,27 +1574,36 @@ function hideLoader() {
   }
 }
 
+// Try a single URL and return parsed JSON or throw
+async function tryFetch(url, timeout = 8000) {
+  const r = await fetch(url, { signal: AbortSignal.timeout(timeout) });
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return r.json();
+}
+
 async function apiGet(path, directUrl) {
   showLoader();
   try {
-    try {
-      const r = await fetch(`${CONFIG.API_BASE}${path}`, { signal: AbortSignal.timeout(10000) });
-      if (r.ok) return await r.json();
-    } catch (e) { /* fall through */ }
+    // 1. Try browser → upstream directly (no CORS headers needed for most CNR endpoints)
+    if (directUrl) {
+      try { return await tryFetch(directUrl, 5000); } catch (e) {}
+    }
 
+    // 2. Try worker API
+    try { return await tryFetch(`${CONFIG.API_BASE}${path}`, 8000); } catch (e) {}
+
+    // 3. Try worker /proxy passthrough
     if (directUrl) {
       try {
-        const r = await fetch(`${CONFIG.API_BASE}/proxy?url=${encodeURIComponent(directUrl)}`, { signal: AbortSignal.timeout(8000) });
-        if (r.ok) return await r.json();
+        return await tryFetch(`${CONFIG.API_BASE}/proxy?url=${encodeURIComponent(directUrl)}`, 8000);
       } catch (e) {}
 
-      for (const p of CONFIG.PUBLIC_PROXIES) {
-        try {
-          const url = p.encode ? `${p.url}${encodeURIComponent(directUrl)}` : `${p.url}${directUrl}`;
-          const r = await fetch(url, { signal: AbortSignal.timeout(9000) });
-          if (r.ok) return await r.json();
-        } catch (e) { continue; }
-      }
+      // 4. Race all public proxies in parallel — take the first success
+      const proxyPromises = CONFIG.PUBLIC_PROXIES.map(p => {
+        const url = p.encode ? `${p.url}${encodeURIComponent(directUrl)}` : `${p.url}${directUrl}`;
+        return tryFetch(url, 9000);
+      });
+      try { return await Promise.any(proxyPromises); } catch (e) {}
     }
 
     throw new Error('All sources failed');
@@ -2724,6 +2774,291 @@ document.addEventListener('click', e => {
 });
 
 restoreState();
+
+// =============================================================================
+// IndexedDB — leaderboard cache (survives page reloads unlike localStorage)
+// =============================================================================
+const IDB = (() => {
+  let db = null;
+  const open = () => new Promise((res, rej) => {
+    const req = indexedDB.open('cnr-tracker', 1);
+    req.onupgradeneeded = e => {
+      e.target.result.createObjectStore('leaderboards', { keyPath: 'key' });
+    };
+    req.onsuccess = e => { db = e.target.result; res(db); };
+    req.onerror   = e => rej(e.target.error);
+  });
+  const getDb = async () => db || await open();
+
+  return {
+    async get(key) {
+      const d = await getDb();
+      return new Promise((res, rej) => {
+        const tx  = d.transaction('leaderboards', 'readonly');
+        const req = tx.objectStore('leaderboards').get(key);
+        req.onsuccess = e => res(e.target.result || null);
+        req.onerror   = e => rej(e.target.error);
+      });
+    },
+    async set(key, data, ttl = 7 * 24 * 3600 * 1000) {
+      const d = await getDb();
+      return new Promise((res, rej) => {
+        const tx  = d.transaction('leaderboards', 'readwrite');
+        const req = tx.objectStore('leaderboards').put({ key, data, ts: Date.now(), ttl });
+        req.onsuccess = () => res();
+        req.onerror   = e => rej(e.target.error);
+      });
+    },
+    async getIfFresh(key, ttl = 7 * 24 * 3600 * 1000) {
+      const rec = await this.get(key);
+      if (!rec) return null;
+      if (Date.now() - rec.ts > ttl) return null;
+      return rec.data;
+    },
+  };
+})();
+
+// Patch api.leaderboard to check IndexedDB first
+const _origLeaderboard = api.leaderboard.bind(api);
+api.leaderboard = async function(region, stat, page) {
+  const key = `lb:${region}:${stat}:${page}`;
+  try {
+    const fresh = await IDB.getIfFresh(key);
+    if (fresh) return fresh;
+  } catch (e) {}
+  const data = await _origLeaderboard(region, stat, page);
+  try { await IDB.set(key, data); } catch (e) {}
+  return data;
+};
+
+// =============================================================================
+// Hover prefetch — start fetching server data before the user clicks
+// =============================================================================
+let _prefetchTimeout = null;
+document.addEventListener('mouseover', e => {
+  const pill = e.target.closest('[data-server]');
+  if (!pill) return;
+  const server = pill.dataset.server;
+  if (server === state.selectedServer) return;
+  clearTimeout(_prefetchTimeout);
+  _prefetchTimeout = setTimeout(() => {
+    // Prefetch players + fivem if not already cached
+    if (!state.players[server]) {
+      api.players(server).then(data => {
+        state.players[server] = data;
+      }).catch(() => {});
+    }
+    if (!state.fivem[server]) {
+      api.fivem(server).then(data => {
+        state.fivem[server] = data;
+      }).catch(() => {});
+    }
+  }, 120); // 120ms delay — avoids prefetch on accidental hover
+});
+
+document.addEventListener('mouseout', e => {
+  if (e.target.closest('[data-server]')) clearTimeout(_prefetchTimeout);
+});
+
+// =============================================================================
+// Shared Worker — one polling loop shared across all tabs
+// =============================================================================
+let sharedWorker = null;
+
+function connectSharedWorker() {
+  if (!window.SharedWorker) return; // fallback to existing polling
+  try {
+    sharedWorker = new SharedWorker('/shared-worker.js', { name: 'cnr-shared' });
+    sharedWorker.port.onmessage = e => handleSharedWorkerMessage(e.data);
+    sharedWorker.port.start();
+    sharedWorker.onerror = () => {
+      console.warn('[SW] SharedWorker error — falling back to direct polling');
+      sharedWorker = null;
+    };
+  } catch (err) {
+    console.warn('[SW] SharedWorker unavailable:', err);
+    sharedWorker = null;
+  }
+}
+
+function handleSharedWorkerMessage(msg) {
+  switch (msg.type) {
+    case 'INIT': {
+      const { servers, players, fivem } = msg.data;
+      if (servers) state.servers = servers;
+      Object.keys(players).forEach(id => { if (players[id]) state.players[id] = players[id]; });
+      Object.keys(fivem).forEach(id => { if (fivem[id]) processFivemData(id, fivem[id]); });
+      if (state.route.view === 'server') {
+        const pills = $('#server-pills');
+        if (pills) pills.innerHTML = renderServerPills();
+        updateServerStats();
+        if (state.players[state.selectedServer]) {
+          const wrap = $('#player-list-wrap');
+          if (wrap) wrap.innerHTML = renderPlayerList();
+        }
+      }
+      persistState();
+      break;
+    }
+    case 'SERVERS_UPDATE': {
+      state.servers = msg.data;
+      state.serversError = null;
+      state.lastServerSuccess = Date.now();
+      const pills = $('#server-pills');
+      if (pills) pills.innerHTML = renderServerPills();
+      updateServerStats();
+      persistState();
+      break;
+    }
+    case 'PLAYERS_UPDATE': {
+      state.players[msg.server] = msg.data;
+      if (state.selectedServer === msg.server && state.route.view === 'server') {
+        const wrap = $('#player-list-wrap');
+        if (wrap) wrap.innerHTML = renderPlayerList();
+      }
+      persistState();
+      break;
+    }
+    case 'FIVEM_UPDATE': {
+      processFivemData(msg.server, msg.data);
+      if (state.selectedServer === msg.server && state.route.view === 'server') {
+        updateServerStats();
+        if (state.players[msg.server]) {
+          const wrap = $('#player-list-wrap');
+          if (wrap) wrap.innerHTML = renderPlayerList();
+        }
+      }
+      persistState();
+      break;
+    }
+    case 'SERVERS_ERROR':
+      state.serversError = msg.error;
+      updateServerStats();
+      break;
+  }
+}
+
+// Extract fivem data processing so both SharedWorker and direct polling use same logic
+function processFivemData(targetServer, data) {
+  state.fivem[targetServer] = data;
+
+  // Restart timer
+  let timeStr = data?.Data?.vars?.Time || data?.Data?.vars?.sv_timeOfDay;
+  if (!timeStr && data?.Data?.vars) {
+    const shortDays = ['Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun', 'Mon'];
+    for (const key in data.Data.vars) {
+      const val = data.Data.vars[key];
+      if (typeof val === 'string' && shortDays.some(d => val.startsWith(d)) && /^\d{1,2}:\d{2}/.test(val.split(' ')[1] || '')) {
+        timeStr = val;
+        break;
+      }
+    }
+  }
+  if (timeStr) {
+    try {
+      const timeStringToDate = (ts) => {
+        const regex = /^(.+) (\d{2}):(\d{2})$/;
+        const days  = ['Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun', 'Mon'];
+        const match = ts.match(regex);
+        if (!match) throw new Error('invalid timeString');
+        const date = new Date(2025, 0, days.indexOf(match[1]));
+        date.setHours(parseInt(match[2]), parseInt(match[3]), 0, 0);
+        return date;
+      };
+      const timeStringToSecondsRemaining = (ts) => {
+        const regex = /^(.+) (\d{2}):(\d{2})$/;
+        const days  = ['Sat', 'Fri', 'Thu', 'Wed', 'Tue', 'Mon', 'Sun'];
+        const match = ts.match(regex);
+        if (!match) throw new Error('invalid timeString');
+        return days.indexOf(match[1]) * 24 * 60 + (24 - parseInt(match[2]) - 1) * 60 + (60 - parseInt(match[3]));
+      };
+      const fetchTime     = Date.now();
+      const lastIngameDate = timeStringToDate(timeStr);
+      const getCurrentIngameTime = () => {
+        const elapsed = Date.now() - fetchTime;
+        const ingameMs = (elapsed + 4000) * 60;
+        const current  = new Date(lastIngameDate.getTime() + ingameMs);
+        const days     = ['Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun', 'Mon'];
+        return `${days[current.getDay()]} ${String(current.getHours()).padStart(2,'0')}:${String(current.getMinutes()).padStart(2,'0')}`;
+      };
+      state.restartTimers[targetServer]        = timeStringToSecondsRemaining(getCurrentIngameTime());
+      state.restartCalculatedAts[targetServer] = Date.now();
+      if (!state._ingameTimeFn) state._ingameTimeFn = {};
+      state._ingameTimeFn[targetServer] = () => timeStringToSecondsRemaining(getCurrentIngameTime());
+    } catch (e) { console.warn('restart timer parse failed', e); }
+  }
+
+  // Pings
+  const players = data?.Data?.players || [];
+  if (players.length) {
+    const pings = players.map(p => p.ping).filter(x => x > 0);
+    if (pings.length) state.avgPings[targetServer] = Math.round(pings.reduce((a,b)=>a+b,0)/pings.length);
+    const pingMap = {};
+    players.forEach(p => { if (p.name && p.ping) pingMap[p.name.toLowerCase()] = p.ping; });
+    state.playerPings[targetServer] = pingMap;
+  }
+}
+
+// Patch loadServerData to use SharedWorker when available
+const _origLoadServerData = loadServerData;
+function loadServerData() {
+  if (sharedWorker) {
+    // Tell shared worker to ensure this server's data is fresh
+    sharedWorker.port.postMessage({ type: 'FETCH_SERVER', server: state.selectedServer });
+    // Still start the restart ticker and ping measurement locally
+    startRestartTicker();
+    const s = CONFIG.SERVERS[state.selectedServer];
+    measureYourPing(s.ip).then(p => {
+      state.yourPings[state.selectedServer] = p;
+      updateServerStats();
+    }).catch(() => {});
+    loadEnrichmentData(state.selectedServer);
+    return;
+  }
+  _origLoadServerData();
+}
+
+// =============================================================================
+// Offline detection
+// =============================================================================
+function updateOnlineStatus() {
+  const banner = document.getElementById('offline-banner');
+  if (!banner) return;
+  if (!navigator.onLine) {
+    banner.classList.add('visible');
+  } else {
+    banner.classList.remove('visible');
+  }
+}
+window.addEventListener('online',  updateOnlineStatus);
+window.addEventListener('offline', updateOnlineStatus);
+updateOnlineStatus();
+
+// =============================================================================
+// Service Worker registration
+// =============================================================================
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js', { scope: '/' })
+      .then(reg => {
+        console.log('[SW] registered', reg.scope);
+        // Prompt for update if new SW is waiting
+        reg.addEventListener('updatefound', () => {
+          const newWorker = reg.installing;
+          newWorker.addEventListener('statechange', () => {
+            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+              newWorker.postMessage({ type: 'SKIP_WAITING' });
+            }
+          });
+        });
+      })
+      .catch(e => console.warn('[SW] registration failed:', e));
+  });
+}
+
+// Connect Shared Worker
+connectSharedWorker();
+
 handleRouteChange();
 </script>
 </body>

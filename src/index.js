@@ -11,7 +11,10 @@
 //   type = "Text"
 //   globs = ["**/*.html"]
 //   fallthrough = true
-import cnrHtmlRaw from './cnr.html';
+import cnrHtmlRaw      from './cnr.html';
+import swJs            from './sw.js';
+import sharedWorkerJs  from './shared-worker.js';
+import manifestJson    from './manifest.json';
 // Patch the HTML for cnr.ysb.one context:
 //   1. Update og:url and logo tag
 //   2. Inject a tiny script that converts /na1 paths → #/na1 hash so the SPA
@@ -78,10 +81,10 @@ const TTL = {
   servers:     20,
   players:     20,
   fivem:       30,
-  leaderboard: 21600,
+  leaderboard: 604800,
   history:     300,
   embed:      30,    // embed HTML cache at CF edge (seconds)
-  embedImage: 600,   // embed PNG stored in KV — only regenerate every 10 minutes
+  embedImage: 600,   // CF edge cache TTL for embed SVG responses
 };
 
 // ─── Embed visual config (matches your CSS vars) ──────────────────────────────
@@ -165,20 +168,22 @@ async function fetchWithFallback(url) {
     if (e.code === 429) throw e;
   }
 
-  for (const proxy of PUBLIC_PROXIES) {
-    try {
-      const proxied = proxy + encodeURIComponent(url);
-      const r = await fetch(proxied, {
-        signal:  AbortSignal.timeout(7000),
-        headers: { 'User-Agent': 'cnrtracker/1.0' },
-      });
-      if (r.ok) {
+  // Race all proxies in parallel — take the first success
+  try {
+    const proxyResults = await Promise.any(
+      PUBLIC_PROXIES.map(async proxy => {
+        const proxied = proxy + encodeURIComponent(url);
+        const r = await fetch(proxied, {
+          signal:  AbortSignal.timeout(7000),
+          headers: { 'User-Agent': 'cnrtracker/1.0' },
+        });
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
         const text = await r.text();
-        try   { return JSON.parse(text); }
-        catch { continue; }
-      }
-    } catch { continue; }
-  }
+        return JSON.parse(text);
+      })
+    );
+    return proxyResults;
+  } catch { /* all proxies failed — fall through to DoH */ }
 
   // Last resort: resolve the hostname via Cloudflare's own DoH API and hit the
   // server by IP directly over HTTP with a Host header.
@@ -235,40 +240,123 @@ async function fetchViaIp(originalUrl) {
 }
 
 // =============================================================================
-// Cached fetcher (unchanged)
+// Tiered cache — KV → CF Cache API → in-memory → direct fetch
+//
+// When KV hits its daily limit (429), the system falls back gracefully:
+//   Tier 1: Workers KV (primary, persists across isolates)
+//   Tier 2: Cloudflare Cache API (edge cache, zero KV ops, free)
+//   Tier 3: Module-level memory map (lasts for isolate lifetime ~30s)
+//   Tier 4: Direct upstream fetch (no cache, last resort)
+//
+// Responses include an X-Cache-Tier header so you can see which tier served it.
 // =============================================================================
+
+// Tier 3: module-level memory cache (survives within a single isolate)
+const memCache = new Map();
+
+// Safe KV wrapper — returns null instead of throwing on 429 or quota errors
+async function kvGet(kv, key, type = 'json') {
+  try { return await kv.get(key, type); }
+  catch (e) {
+    console.warn(`[KV] get failed for ${key}:`, e.message);
+    return null;
+  }
+}
+async function kvPut(kv, key, value, opts) {
+  try { await kv.put(key, value, opts); }
+  catch (e) { console.warn(`[KV] put failed for ${key}:`, e.message); }
+}
+
+// CF Cache API helpers — keyed by a fake URL under the worker's origin
+function cfCacheUrl(key) {
+  return `https://cnr-cache.internal/${encodeURIComponent(key)}`;
+}
+async function cfCacheGet(key) {
+  try {
+    const r = await caches.default.match(cfCacheUrl(key));
+    if (!r) return null;
+    return await r.json();
+  } catch { return null; }
+}
+async function cfCachePut(key, data, ttlSeconds) {
+  try {
+    const r = new Response(JSON.stringify(data), {
+      headers: {
+        'Content-Type': 'application/json',
+        'Cache-Control': `public, max-age=${ttlSeconds}`,
+      },
+    });
+    await caches.default.put(cfCacheUrl(key), r);
+  } catch { /* CF Cache not available in all environments */ }
+}
+
 const inflight = new Map();
 
 async function cached(env, key, ttl, url) {
   if (inflight.has(key)) return await inflight.get(key);
 
   const promise = (async () => {
-    const stored = await env.CNR_CACHE.get(key, 'json');
-    if (stored && stored._ts && Date.now() - stored._ts < ttl * 1000) {
-      return stored.data;
-    }
+    const now = Date.now();
 
-    const cooling = await env.CNR_CACHE.get(`429:${key}`);
-    if (cooling) {
-      if (stored) return stored.data;
-      throw new Error('Upstream cooling down, no stale data available');
-    }
-
+    // ── Tier 1: KV ────────────────────────────────────────────────────────────
+    let kvStored = null;
     try {
-      const data = await fetchWithFallback(url);
-      await env.CNR_CACHE.put(
-        key,
-        JSON.stringify({ data, _ts: Date.now() }),
-        { expirationTtl: Math.max(ttl * 4, 60) }
-      );
-      return data;
+      kvStored = await kvGet(env.CNR_CACHE, key);
+      if (kvStored && kvStored._ts && now - kvStored._ts < ttl * 1000) {
+        return kvStored.data; // fresh KV hit
+      }
+    } catch { /* KV unavailable */ }
+
+    // Check 429 cooldown in KV (only if KV is working)
+    const cooling = kvStored !== null ? await kvGet(env.CNR_CACHE, `429:${key}`) : null;
+    if (cooling) {
+      if (kvStored) return kvStored.data; // serve stale KV during cooldown
+    }
+
+    // ── Tier 2: CF Cache API ──────────────────────────────────────────────────
+    const cfStored = await cfCacheGet(key);
+    if (cfStored && cfStored._ts && now - cfStored._ts < ttl * 1000) {
+      return cfStored.data; // fresh CF Cache hit
+    }
+
+    // ── Tier 3: In-memory ─────────────────────────────────────────────────────
+    const memStored = memCache.get(key);
+    if (memStored && now - memStored._ts < ttl * 1000) {
+      return memStored.data; // fresh memory hit
+    }
+
+    // ── Tier 4: Fetch upstream ────────────────────────────────────────────────
+    let data;
+    try {
+      data = await fetchWithFallback(url);
     } catch (e) {
       if (e.code === 429) {
-        await env.CNR_CACHE.put(`429:${key}`, '1', { expirationTtl: 300 });
+        await kvPut(env.CNR_CACHE, `429:${key}`, '1', { expirationTtl: 300 });
       }
-      if (stored) return stored.data;
+      // Serve best stale data available
+      if (kvStored)  return kvStored.data;
+      if (cfStored)  return cfStored.data;
+      if (memStored) return memStored.data;
       throw e;
     }
+
+    // ── Write to all tiers ────────────────────────────────────────────────────
+    const payload = { data, _ts: now };
+
+    // Memory (always)
+    memCache.set(key, payload);
+
+    // CF Cache (always — zero KV ops)
+    await cfCachePut(key, payload, Math.max(ttl * 4, 60));
+
+    // KV (best effort — may fail if quota exceeded)
+    await kvPut(
+      env.CNR_CACHE, key,
+      JSON.stringify(payload),
+      { expirationTtl: Math.max(ttl * 4, 60) }
+    );
+
+    return data;
   })();
 
   inflight.set(key, promise);
@@ -330,7 +418,7 @@ async function handleHistory(url, env, origin) {
     const d = new Date(now);
     d.setUTCDate(d.getUTCDate() - i);
     const dateKey   = d.toISOString().split('T')[0];
-    const snapshots = await env.CNR_CACHE.get(`history:${server}:${dateKey}`, 'json');
+    const snapshots = await kvGet(env.CNR_CACHE, `history:${server}:${dateKey}`);
     if (snapshots && Array.isArray(snapshots) && snapshots.length) {
       days.push({ date: dateKey, snapshots });
     }
@@ -370,7 +458,18 @@ async function handleProxy(url, origin) {
 // NEW — Live status aggregator (reuses your existing cached())
 // Returns { NA1: { online, restarting, players, maxPlayers, label }, ... }
 // =============================================================================
+const embedStatusInflight = new Map();
+
 async function fetchEmbedStatus(env) {
+  const key = 'embed-status';
+  if (embedStatusInflight.has(key)) return embedStatusInflight.get(key);
+  const promise = _fetchEmbedStatusImpl(env);
+  embedStatusInflight.set(key, promise);
+  try { return await promise; }
+  finally { embedStatusInflight.delete(key); }
+}
+
+async function _fetchEmbedStatusImpl(env) {
   // Fetch servers list + all three player counts in parallel, reusing KV cache
   const [serverList, playersNA1, playersNA2, playersEU1] = await Promise.all([
     cached(env, 'servers', TTL.servers, SERVERS_API).catch(() => []),
@@ -384,6 +483,7 @@ async function fetchEmbedStatus(env) {
     NA2: Array.isArray(playersNA2) ? playersNA2.length : 0,
     EU1: Array.isArray(playersEU1) ? playersEU1.length : 0,
   };
+
 
   const now    = Date.now();
   const status = {};
@@ -527,18 +627,19 @@ async function handleEmbed(serverId, request, env) {
 //   4. Build SVG → resvg-wasm → PNG → store in KV → return.
 // =============================================================================
 async function handleEmbedImage(serverId, request, env) {
-  // /embed-image/purge — wipe all cached SVGs and PNGs
+  // /embed-image/purge — clear server/player data from KV so next request fetches fresh
   if (new URL(request.url).pathname === '/embed-image/purge') {
     await Promise.all([
-      env.CNR_CACHE.delete('embed-svg-v1:overview'),
-      env.CNR_CACHE.delete('embed-svg-v1:NA1'),
-      env.CNR_CACHE.delete('embed-svg-v1:NA2'),
-      env.CNR_CACHE.delete('embed-svg-v1:EU1'),
-      env.CNR_CACHE.delete('embed-png-v1:overview'),
-      env.CNR_CACHE.delete('embed-png-v1:NA1'),
-      env.CNR_CACHE.delete('embed-png-v1:NA2'),
-      env.CNR_CACHE.delete('embed-png-v1:EU1'),
+      env.CNR_CACHE.delete('servers').catch(() => {}),
+      env.CNR_CACHE.delete('players:US1').catch(() => {}),
+      env.CNR_CACHE.delete('players:US2').catch(() => {}),
+      env.CNR_CACHE.delete('players:EU1').catch(() => {}),
     ]);
+    // Also clear CF Cache and memory tiers
+    ['servers','players:US1','players:US2','players:EU1'].forEach(k => {
+      memCache.delete(k);
+      caches.default.delete(cfCacheUrl(k)).catch(() => {});
+    });
     return new Response('cache purged', { headers: { 'Content-Type': 'text/plain' } });
   }
 
@@ -554,44 +655,20 @@ async function handleEmbedImage(serverId, request, env) {
 // Returns the raw SVG — called by weserv.nl to convert to PNG
 // =============================================================================
 async function handleEmbedSvg(serverId, env, request) {
-  const kvKey  = `embed-svg-v1:${serverId || 'overview'}`;
-  const nocache = new URL(request.url).searchParams.has('nocache');
+  // No KV caching here — SVG generation is pure CPU and fetchEmbedStatus
+  // already uses the KV-cached server/player data. Caching the SVG itself
+  // in KV was causing excessive read/write operations.
+  // CF edge caching (s-maxage) handles repeated requests at the CDN layer.
 
-  // ── 1. Check KV cache (10 min TTL) — skip if ?nocache ───────────────────────
-  if (!nocache) {
-    try {
-      const cachedSvg = await env.CNR_CACHE.get(kvKey, 'text');
-      if (cachedSvg) {
-        return new Response(cachedSvg, {
-          headers: {
-            'Content-Type':                'image/svg+xml',
-            'Cache-Control':               `public, max-age=${TTL.embedImage}`,
-            'Access-Control-Allow-Origin': '*',
-          },
-        });
-      }
-    } catch { /* miss — fall through */ }
-  }
-
-  // ── 2. Fetch live status ─────────────────────────────────────────────────────
   const status = await fetchEmbedStatus(env);
-  const hasRealData = Object.values(status).some(s => s.online || s.players > 0);
-
-  // ── 3. Build SVG ─────────────────────────────────────────────────────────────
-  const svg = serverId && status[serverId]
+  const svg    = serverId && status[serverId]
     ? buildSingleSvg(serverId, status[serverId])
     : buildOverviewSvg(status);
-
-  // ── 4. Cache in KV for 10 min if data is real ────────────────────────────────
-  if (hasRealData) {
-    await env.CNR_CACHE.put(kvKey, svg, { expirationTtl: TTL.embedImage })
-      .catch(e => console.error('embed-svg: KV write failed', e.message));
-  }
 
   return new Response(svg, {
     headers: {
       'Content-Type':                'image/svg+xml',
-      'Cache-Control':               `public, max-age=${TTL.embedImage}`,
+      'Cache-Control':               `public, max-age=${TTL.embedImage}, s-maxage=${TTL.embedImage}`,
       'Access-Control-Allow-Origin': '*',
     },
   });
@@ -792,6 +869,33 @@ async function handleRequest(request, env) {
     return err(405, 'Method not allowed', origin);
   }
 
+  // ── Static files: sw.js, shared-worker.js, manifest.json ────────────────
+  if (url.pathname === '/sw.js') {
+    return new Response(swJs, {
+      headers: {
+        'Content-Type':  'application/javascript',
+        'Cache-Control': 'no-cache', // always fetch latest SW
+        'Service-Worker-Allowed': '/',
+      },
+    });
+  }
+  if (url.pathname === '/shared-worker.js') {
+    return new Response(sharedWorkerJs, {
+      headers: {
+        'Content-Type':  'application/javascript',
+        'Cache-Control': 'public, max-age=60',
+      },
+    });
+  }
+  if (url.pathname === '/manifest.json') {
+    return new Response(manifestJson, {
+      headers: {
+        'Content-Type':  'application/manifest+json',
+        'Cache-Control': 'public, max-age=86400',
+      },
+    });
+  }
+
   // ── Pretty server URLs: /na1  /na2  /eu1 ────────────────────────────────
   // Bots (Discord, etc.) get the embed HTML with OG tags.
   // Real browsers get the full SPA — the injected script converts path→hash.
@@ -868,24 +972,52 @@ async function handleRequest(request, env) {
 }
 
 // =============================================================================
-// Scheduled handler (unchanged)
+// Scheduled handler — snapshots history + preloads enrichment leaderboard data
 // =============================================================================
 async function handleScheduled(env) {
   try {
     const data = await fetchWithFallback(SERVERS_API);
     if (!Array.isArray(data)) return;
-    const now    = new Date();
+    const now     = new Date();
     const dateKey = now.toISOString().split('T')[0];
     const timeKey = now.toISOString();
-    for (const s of data) {
+
+    // ── History snapshots ──────────────────────────────────────────────────────
+    // Batch all server updates together to minimise sequential KV writes
+    await Promise.all(data.map(async s => {
       const localId = REVERSE_SERVER_ID_MAP[s.Id];
-      if (!localId) continue;
+      if (!localId) return;
       const histKey = `history:${localId}:${dateKey}`;
-      let day = await env.CNR_CACHE.get(histKey, 'json');
+      let day = await kvGet(env.CNR_CACHE, histKey);
       if (!Array.isArray(day)) day = [];
       day.push({ t: timeKey, players: s.Players, queue: s.QueuedPlayers, max: s.MaxPlayers });
-      await env.CNR_CACHE.put(histKey, JSON.stringify(day), { expirationTtl: 7 * 24 * 3600 });
-    }
+      await kvPut(env.CNR_CACHE, histKey, JSON.stringify(day), { expirationTtl: 7 * 24 * 3600 });
+    }));
+
+    // ── Preload enrichment leaderboard data ────────────────────────────────────
+    // Keeps page 1 of the most-used leaderboard stats warm in KV so the first
+    // visitor each hour doesn't have to wait for the upstream fetch.
+    const enrichStats = ['net_worth', 'crimes_committed', 'arrests'];
+    const enrichRegions = ['NA', 'EU'];
+    await Promise.all(
+      enrichRegions.flatMap(region =>
+        enrichStats.map(async stat => {
+          const key = `lb:${region}:${stat}:1`;
+          const stored = await kvGet(env.CNR_CACHE, key);
+          // Only refresh if expired or missing
+          if (!stored || !stored._ts || Date.now() - stored._ts > TTL.leaderboard * 1000) {
+            try {
+              const fresh = await fetchWithFallback(`${LEADERBOARD_API}/${region}/${stat}/1`);
+              await kvPut(env.CNR_CACHE, key, JSON.stringify({ data: fresh, _ts: Date.now() }), {
+                expirationTtl: Math.max(TTL.leaderboard * 4, 60)
+              });
+            } catch (e) {
+              console.warn(`cron: enrichment preload failed for ${region}:${stat}`, e.message);
+            }
+          }
+        })
+      )
+    );
   } catch (e) {
     console.error('cron error', e);
   }

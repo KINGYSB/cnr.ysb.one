@@ -1,0 +1,57 @@
+{
+  "name": "CNR Tracker",
+  "short_name": "CNR",
+  "description": "Live server status and leaderboards for GTA Crime and Robbery",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0a0a0b",
+  "theme_color": "#0a0a0b",
+  "categories": ["games", "utilities"],
+  "icons": [
+    {
+      "src": "/images/favicon.png",
+      "sizes": "any",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "NA1",
+      "short_name": "NA1",
+      "description": "North America 1 server status",
+      "url": "/na1",
+      "icons": [{ "src": "/images/favicon.png", "sizes": "any" }]
+    },
+    {
+      "name": "NA2",
+      "short_name": "NA2",
+      "description": "North America 2 server status",
+      "url": "/na2",
+      "icons": [{ "src": "/images/favicon.png", "sizes": "any" }]
+    },
+    {
+      "name": "EU1",
+      "short_name": "EU1",
+      "description": "Europe 1 server status",
+      "url": "/eu1",
+      "icons": [{ "src": "/images/favicon.png", "sizes": "any" }]
+    },
+    {
+      "name": "Leaderboards",
+      "short_name": "Boards",
+      "description": "Player leaderboards",
+      "url": "/#/leaderboards",
+      "icons": [{ "src": "/images/favicon.png", "sizes": "any" }]
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/embed-image",
+      "sizes": "1200x630",
+      "type": "image/png",
+      "label": "CNR Tracker server overview"
+    }
+  ]
+}
