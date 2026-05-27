@@ -11,7 +11,7 @@ const FIVEM_API  = 'https://servers-frontend.fivem.net/api/servers/single';
 const FIVEM_CFX = { NA1: 'a6aope', NA2: 'zlvypp', EU1: 'kx98er' };
 const API_IDS   = { NA1: 'US1', NA2: 'US2', EU1: 'EU1' };
 
-const POLL_INTERVAL = 30000; // 30s
+const POLL_INTERVAL = 5 * 60 * 1000; // 5m
 
 // Connected ports (one per tab)
 const ports = new Set();

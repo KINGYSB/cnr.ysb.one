@@ -1618,13 +1618,13 @@ async function tryFetch(url, timeout = 8000) {
 async function apiGet(path, directUrl) {
   showLoader();
   try {
-    // 1. Try browser → upstream directly (no CORS headers needed for most CNR endpoints)
+    // 1. Try worker API first so the browser stays same-origin on localhost and prod.
+    try { return await tryFetch(`${CONFIG.API_BASE}${path}`, 8000); } catch (e) {}
+
+    // 2. Fall back to direct upstream only if the worker route is unavailable.
     if (directUrl) {
       try { return await tryFetch(directUrl, 5000); } catch (e) {}
     }
-
-    // 2. Try worker API
-    try { return await tryFetch(`${CONFIG.API_BASE}${path}`, 8000); } catch (e) {}
 
     // 3. Try worker /proxy passthrough
     if (directUrl) {
@@ -1669,17 +1669,8 @@ const api = {
   fivem(server) {
     const cfx = CONFIG.SERVERS[server].cfx;
     const fivemUrl = `https://servers-frontend.fivem.net/api/servers/single/${cfx}`;
-    
-    return new Promise((resolve, reject) => {
-      fetch(fivemUrl, { signal: AbortSignal.timeout(5000) })
-        .then(r => r.ok ? r.json() : Promise.reject(new Error('FiveM API failed')))
-        .then(resolve)
-        .catch(() => {
-          apiGet(`/api/fivem?server=${server}`, fivemUrl)
-            .then(resolve)
-            .catch(reject);
-        });
-    });
+
+    return apiGet(`/api/fivem?server=${server}`, fivemUrl);
   }
 };
 
@@ -2162,6 +2153,7 @@ async function shareCurrentServer() {
 
 async function loadServerData() {
   const targetServer = state.selectedServer;
+  const SERVER_REFRESH_INTERVAL = 5 * 60 * 1000;
 
   // Ask SharedWorker to refresh this server, but continue regardless
   if (sharedWorker) {
@@ -2196,7 +2188,7 @@ async function loadServerData() {
     console.error('players', e);
     if (state.selectedServer === targetServer && !state.players[targetServer]) {
       const wrap = $('#player-list-wrap');
-      if (wrap) wrap.innerHTML = `<div class="error-banner">Couldn't load player list. Retrying in 30s…</div>`;
+      if (wrap) wrap.innerHTML = `<div class="error-banner">Couldn't load player list. Retrying in 5 mins…</div>`;
     }
   });
 
@@ -2288,7 +2280,7 @@ async function loadServerData() {
   clearTimeout(state.refreshTimers.server);
   state.refreshTimers.server = setTimeout(() => {
     if (state.route.view === 'server' && !document.hidden) loadServerData();
-  }, 30000);
+  }, SERVER_REFRESH_INTERVAL);
 }
 
 
@@ -2312,7 +2304,7 @@ function renderConnectionBanner() {
         <span class="conn-banner-dot"></span>
         <div>
           <strong>Can't reach the server API.</strong>
-          <div class="conn-banner-sub">Retrying every 30s. Open DevTools Network tab to see why.</div>
+          <div class="conn-banner-sub">Retrying every 5 mins. Open DevTools Network tab to see why.</div>
         </div>
       </div>
     `;
@@ -2833,6 +2825,7 @@ document.addEventListener('input', e => {
 
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden && state.route.view === 'server') {
+    clearTimeout(state.refreshTimers.server);
     loadServerData();
   }
 });

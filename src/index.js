@@ -1199,6 +1199,14 @@ async function handleRequest(request, env) {
       },
     });
   }
+  if (url.pathname === '/fonts/fonts.css') {
+    return new Response('/* fonts.css intentionally empty: fallbacks live in cnr.html */\n', {
+      headers: {
+        'Content-Type':  'text/css; charset=utf-8',
+        'Cache-Control': 'public, max-age=86400',
+      },
+    });
+  }
 
   // ── Pretty server URLs: /na1  /na2  /eu1 ────────────────────────────────
   // Bots (Discord, etc.) get the embed HTML with OG tags.
