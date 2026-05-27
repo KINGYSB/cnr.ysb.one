@@ -526,13 +526,17 @@ async function handleEmbed(serverId, request, env) {
 //   4. Build SVG → resvg-wasm → PNG → store in KV → return.
 // =============================================================================
 async function handleEmbedImage(serverId, request, env) {
-  // /embed-image/purge — wipe all cached SVGs
+  // /embed-image/purge — wipe all cached SVGs and PNGs
   if (new URL(request.url).pathname === '/embed-image/purge') {
     await Promise.all([
       env.CNR_CACHE.delete('embed-svg-v1:overview'),
       env.CNR_CACHE.delete('embed-svg-v1:NA1'),
       env.CNR_CACHE.delete('embed-svg-v1:NA2'),
       env.CNR_CACHE.delete('embed-svg-v1:EU1'),
+      env.CNR_CACHE.delete('embed-png-v1:overview'),
+      env.CNR_CACHE.delete('embed-png-v1:NA1'),
+      env.CNR_CACHE.delete('embed-png-v1:NA2'),
+      env.CNR_CACHE.delete('embed-png-v1:EU1'),
     ]);
     return new Response('cache purged', { headers: { 'Content-Type': 'text/plain' } });
   }
@@ -547,22 +551,25 @@ async function handleEmbedImage(serverId, request, env) {
 // Embed SVG endpoint  GET /embed-svg  or  GET /embed-svg/na1
 // Returns the raw SVG — called by weserv.nl to convert to PNG
 // =============================================================================
-async function handleEmbedSvg(serverId, env) {
-  const kvKey = `embed-svg-v1:${serverId || 'overview'}`;
+async function handleEmbedSvg(serverId, env, request) {
+  const kvKey  = `embed-svg-v1:${serverId || 'overview'}`;
+  const nocache = new URL(request.url).searchParams.has('nocache');
 
-  // ── 1. Check KV cache (10 min TTL) ──────────────────────────────────────────
-  try {
-    const cachedSvg = await env.CNR_CACHE.get(kvKey, 'text');
-    if (cachedSvg) {
-      return new Response(cachedSvg, {
-        headers: {
-          'Content-Type':                'image/svg+xml',
-          'Cache-Control':               `public, max-age=${TTL.embedImage}`,
-          'Access-Control-Allow-Origin': '*',
-        },
-      });
-    }
-  } catch { /* miss — fall through */ }
+  // ── 1. Check KV cache (10 min TTL) — skip if ?nocache ───────────────────────
+  if (!nocache) {
+    try {
+      const cachedSvg = await env.CNR_CACHE.get(kvKey, 'text');
+      if (cachedSvg) {
+        return new Response(cachedSvg, {
+          headers: {
+            'Content-Type':                'image/svg+xml',
+            'Cache-Control':               `public, max-age=${TTL.embedImage}`,
+            'Access-Control-Allow-Origin': '*',
+          },
+        });
+      }
+    } catch { /* miss — fall through */ }
+  }
 
   // ── 2. Fetch live status ─────────────────────────────────────────────────────
   const status = await fetchEmbedStatus(env);
@@ -825,7 +832,7 @@ async function handleRequest(request, env) {
   if (embedSvgMatch) {
     const raw      = (embedSvgMatch[1] || '').toUpperCase();
     const serverId = SERVER_META[raw] ? raw : null;
-    return handleEmbedSvg(serverId, env);
+    return handleEmbedSvg(serverId, env, request);
   }
   // ─────────────────────────────────────────────────────────────────────────
 
