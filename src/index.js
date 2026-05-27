@@ -394,16 +394,18 @@ async function fetchEmbedStatus(env) {
       ? serverList.find(s => s.Id === id || REVERSE_SERVER_ID_MAP[s.Id] === id)
       : null;
 
-    let online = false, restarting = false;
+    let restarting = false;
     let maxPlayers = SERVER_META[id].maxPlayers;
 
     if (live) {
-      const ageSec      = (now - new Date(live.LastHeartbeatDateTime).getTime()) / 1000;
+      const ageSec         = (now - new Date(live.LastHeartbeatDateTime).getTime()) / 1000;
       const heartbeatFresh = ageSec < 120; // 2 min grace period covers restart window
       restarting = heartbeatFresh && playerCounts[id] === 0;
-      online     = playerCounts[id] > 0 || restarting;
       maxPlayers = live.MaxPlayers || maxPlayers;
     }
+
+    // Always use player count as source of truth — works even if live is null
+    const online = playerCounts[id] > 0 || restarting;
 
     status[id] = {
       online,
