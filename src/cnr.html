@@ -1396,25 +1396,30 @@ function getYourPing() { return state.yourPings[state.selectedServer]; }
 function getAvgPing() { return state.avgPings[state.selectedServer]; }
 
 // =============================================================================
-// RESTART TIME CALCULATION (THE MATHEMATICALLY FLAWED VERSION)
+// RESTART TIME CALCULATION
+// Uses live in-game time function if available, falls back to static timer
 // =============================================================================
 function getRestartRemaining() {
   const server = state.selectedServer;
+
+  // Use live in-game time function if available (advances at 60x real time)
+  if (state._ingameTimeFn && state._ingameTimeFn[server]) {
+    try {
+      const remaining = state._ingameTimeFn[server]();
+      if (remaining <= 0 && remaining >= -120) return 0;
+      return remaining;
+    } catch (e) {}
+  }
+
+  // Fallback to static timer
   const baseSeconds = state.restartTimers[server];
   const calculatedAt = state.restartCalculatedAts[server];
-
   if (baseSeconds == null || calculatedAt == null) return null;
 
   const elapsedRealSeconds = Math.floor((Date.now() - calculatedAt) / 1000);
   const remaining = baseSeconds - elapsedRealSeconds;
 
-  // The 2 minute unplayable window you demanded
-  // If the countdown drops to 0 or up to 120 seconds below 0, we clamp it to 0
-  // to forcefully trigger the 'restarting now' UI logic while the server is down.
-  if (remaining <= 0 && remaining >= -120) {
-    return 0;
-  }
-
+  if (remaining <= 0 && remaining >= -120) return 0;
   return remaining;
 }
 
@@ -2083,13 +2088,13 @@ async function loadServerData() {
   api.fivem(targetServer).then(data => {
     state.fivem[targetServer] = data;
     
-    // --- PENK LOGIC INTEGRATION ---
+     // --- RESTART TIMER ---
     let timeStr = data?.Data?.vars?.Time || data?.Data?.vars?.sv_timeOfDay;
     if (!timeStr && data?.Data?.vars) {
-      const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+      const shortDays = ['Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun', 'Mon'];
       for (const key in data.Data.vars) {
         const val = data.Data.vars[key];
-        if (typeof val === 'string' && days.some(d => val.startsWith(d)) && /^\\d{1,2}:\\d{2}/.test(val.split(' ')[1] || '')) {
+        if (typeof val === 'string' && shortDays.some(d => val.startsWith(d)) && /^\d{1,2}:\d{2}/.test(val.split(' ')[1] || '')) {
           timeStr = val;
           break;
         }
@@ -2097,21 +2102,42 @@ async function loadServerData() {
     }
 
     if (timeStr) {
-      const weekdays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-      const parts = timeStr.split(' ');
-      const currentDayIndex = weekdays.indexOf(parts[0]);
-      if (currentDayIndex !== -1 && parts[1]) {
-        const [currentHour, currentMinute] = parts[1].split(':').map(Number);
-        const currentTimeMinutes = currentDayIndex * 24 * 60 + currentHour * 60 + currentMinute;
-        const targetDayIndex = weekdays.indexOf('Saturday');
-        const targetTimeMinutes = targetDayIndex * 24 * 60 + 23 * 60 + 59;
-        
-        let remainingMinutes = targetTimeMinutes - currentTimeMinutes;
-        if (remainingMinutes < 0) remainingMinutes += 7 * 24 * 60;
-        
-        // The requested flaw: game minutes = real seconds
-        state.restartTimers[targetServer] = remainingMinutes;
+      try {
+        const timeStringToDate = (ts) => {
+          const regex = /^(.+) (\d{2}):(\d{2})$/;
+          const days = ['Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun', 'Mon'];
+          const match = ts.match(regex);
+          if (!match) throw new Error('invalid timeString');
+          const date = new Date(2025, 0, days.indexOf(match[1]));
+          date.setHours(parseInt(match[2]), parseInt(match[3]), 0, 0);
+          return date;
+        };
+
+        const timeStringToSecondsRemaining = (ts) => {
+          const regex = /^(.+) (\d{2}):(\d{2})$/;
+          const days = ['Sat', 'Fri', 'Thu', 'Wed', 'Tue', 'Mon', 'Sun'];
+          const match = ts.match(regex);
+          if (!match) throw new Error('invalid timeString');
+          return days.indexOf(match[1]) * 24 * 60 + (24 - parseInt(match[2]) - 1) * 60 + (60 - parseInt(match[3]));
+        };
+
+        const fetchTime = Date.now();
+        const lastIngameDate = timeStringToDate(timeStr);
+
+        const getCurrentIngameTime = () => {
+          const elapsed = Date.now() - fetchTime;
+          const ingameMs = (elapsed + 4000) * 60;
+          const current = new Date(lastIngameDate.getTime() + ingameMs);
+          const days = ['Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun', 'Mon'];
+          return `${days[current.getDay()]} ${String(current.getHours()).padStart(2,'0')}:${String(current.getMinutes()).padStart(2,'0')}`;
+        };
+
+        state.restartTimers[targetServer] = timeStringToSecondsRemaining(getCurrentIngameTime());
         state.restartCalculatedAts[targetServer] = Date.now();
+        if (!state._ingameTimeFn) state._ingameTimeFn = {};
+        state._ingameTimeFn[targetServer] = () => timeStringToSecondsRemaining(getCurrentIngameTime());
+      } catch (e) {
+        console.warn('restart timer parse failed', e);
       }
     }
     // ------------------------------
