@@ -1,0 +1,41 @@
+/*
+  Local fonts bundle for CNR Tracker
+  Place the actual font files in the same directory (src/fonts/) with the names below.
+  Recommended formats: .woff2 (preferred), .woff, .ttf
+
+  Files expected (examples):
+    bebas-neue-regular.woff2
+    ibm-plex-sans-regular.woff2
+    jetbrains-mono-regular.woff2
+
+  The project won't include the font binaries for licensing and size reasons.
+*/
+
+@font-face {
+  font-family: 'Bebas Neue';
+  src: url('./bebas-neue-regular.woff2') format('woff2'),
+       url('./bebas-neue-regular.woff') format('woff');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'IBM Plex Sans';
+  src: url('./ibm-plex-sans-regular.woff2') format('woff2'),
+       url('./ibm-plex-sans-regular.woff') format('woff');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'JetBrains Mono';
+  src: url('./jetbrains-mono-regular.woff2') format('woff2'),
+       url('./jetbrains-mono-regular.woff') format('woff');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Fallbacks are already defined in the CSS variables in cnr.html. */

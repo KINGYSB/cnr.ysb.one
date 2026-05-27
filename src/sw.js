@@ -14,6 +14,7 @@ const SHELL_URLS = [
   '/na2',
   '/eu1',
   '/manifest.json',
+  '/fonts/fonts.css',
 ];
 
 // API patterns — cache with network-first strategy

@@ -12,9 +12,10 @@
 //   globs = ["**/*.html"]
 //   fallthrough = true
 import cnrHtmlRaw      from './cnr.html';
-import swJs            from './sw.js';
-import sharedWorkerJs  from './shared-worker.js';
+// Note: serve sw.js and shared-worker.js by fetching their raw text at runtime
+// to avoid bundler/module object coercion when returning as a Response.
 import manifestJson    from './manifest.json';
+const SHARED_WORKER_JS = atob('Ly8gPT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0NCi8vIENOUiBUcmFja2VyIMOi4oKs4oCdIFNoYXJlZCBXb3JrZXINCi8vIEFsbCB0YWJzIHNoYXJlIG9uZSBwb2xsaW5nIGxvb3AgaW5zdGVhZCBvZiBlYWNoIHBvbGxpbmcgaW5kZXBlbmRlbnRseS4NCi8vIFRhYnMgdHJhY2sgdGhlaXIgb3duIHNlbGVjdGVkIHNlcnZlciBpbmRlcGVuZGVudGx5Lg0KLy8gPT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0NCg0KY29uc3QgQVBJX0JBU0UgICA9ICh0eXBlb2YgbG9jYXRpb24gIT09ICd1bmRlZmluZWQnICYmIGxvY2F0aW9uLm9yaWdpbikgPyBsb2NhdGlvbi5vcmlnaW4gOiAnaHR0cHM6Ly9jbnIueXNiLm9uZSc7DQpjb25zdCBESVJFQ1RfQVBJID0gJ2h0dHBzOi8vYXBpLmd0YWNuci5uZXQvY25yJzsNCmNvbnN0IEZJVkVNX0FQSSAgPSAnaHR0cHM6Ly9zZXJ2ZXJzLWZyb250ZW5kLmZpdmVtLm5ldC9hcGkvc2VydmVycy9zaW5nbGUnOw0KDQpjb25zdCBGSVZFTV9DRlggPSB7IE5BMTogJ2E2YW9wZScsIE5BMjogJ3psdnlwcCcsIEVVMTogJ2t4OThlcicgfTsNCmNvbnN0IEFQSV9JRFMgICA9IHsgTkExOiAnVVMxJywgTkEyOiAnVVMyJywgRVUxOiAnRVUxJyB9Ow0KDQpjb25zdCBQT0xMX0lOVEVSVkFMID0gMzAwMDA7IC8vIDMwcw0KDQovLyBDb25uZWN0ZWQgcG9ydHMgKG9uZSBwZXIgdGFiKQ0KY29uc3QgcG9ydHMgPSBuZXcgU2V0KCk7DQoNCi8vIFNoYXJlZCBkYXRhIHN0b3JlDQpjb25zdCBzdG9yZSA9IHsNCiAgc2VydmVyczogICAgIG51bGwsDQogIHBsYXllcnM6ICAgICB7IE5BMTogbnVsbCwgTkEyOiBudWxsLCBFVTE6IG51bGwgfSwNCiAgZml2ZW06ICAgICAgIHsgTkExOiBudWxsLCBOQTI6IG51bGwsIEVVMTogbnVsbCB9LA0KICBsYXN0RmV0Y2g6ICAgeyBzZXJ2ZXJzOiAwLCBOQTE6IDAsIE5BMjogMCwgRVUxOiAwIH0sDQogIGVycm9yczogICAgICB7fSwNCn07DQoNCi8vID09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09DQovLyBDb25uZWN0aW9uIGhhbmRsZXINCi8vID09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09DQpzZWxmLm9uY29ubmVjdCA9IGV2ZW50ID0+IHsNCiAgY29uc3QgcG9ydCA9IGV2ZW50LnBvcnRzWzBdOw0KICBwb3J0cy5hZGQocG9ydCk7DQoNCiAgcG9ydC5vbm1lc3NhZ2UgPSBlID0+IGhhbmRsZU1lc3NhZ2UocG9ydCwgZS5kYXRhKTsNCg0KICBwb3J0Lm9uY2xvc2UgPSAoKSA9PiBwb3J0cy5kZWxldGUocG9ydCk7DQoNCiAgLy8gU2VuZCBjdXJyZW50IGRhdGEgaW1tZWRpYXRlbHkgdG8gbmV3IHRhYg0KICBwb3J0LnBvc3RNZXNzYWdlKHsgdHlwZTogJ0lOSVQnLCBkYXRhOiBnZXRTbmFwc2hvdCgpIH0pOw0KDQogIHBvcnQuc3RhcnQoKTsNCn07DQoNCi8vID09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09DQovLyBNZXNzYWdlIGhhbmRsZXINCi8vID09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09DQpmdW5jdGlvbiBoYW5kbGVNZXNzYWdlKHBvcnQsIG1zZykgew0KICBzd2l0Y2ggKG1zZy50eXBlKSB7DQogICAgY2FzZSAnRkVUQ0hfU0VSVkVSJzoNCiAgICAgIC8vIFRhYiBpcyBzd2l0Y2hpbmcgdG8gYSBzZXJ2ZXIgw6LigqzigJ0gZW5zdXJlIGl0cyBkYXRhIGlzIGZyZXNoDQogICAgICBlbnN1cmVTZXJ2ZXJEYXRhKG1zZy5zZXJ2ZXIpOw0KICAgICAgYnJlYWs7DQogICAgY2FzZSAnRk9SQ0VfUkVGUkVTSCc6DQogICAgICBmZXRjaEFsbCgpOw0KICAgICAgYnJlYWs7DQogIH0NCn0NCg0KLy8gPT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0NCi8vIEJyb2FkY2FzdCB0byBhbGwgY29ubmVjdGVkIHRhYnMNCi8vID09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09DQpmdW5jdGlvbiBicm9hZGNhc3QobXNnKSB7DQogIGZvciAoY29uc3QgcG9ydCBvZiBwb3J0cykgew0KICAgIHRyeSB7IHBvcnQucG9zdE1lc3NhZ2UobXNnKTsgfSBjYXRjaCAoZSkgeyBwb3J0cy5kZWxldGUocG9ydCk7IH0NCiAgfQ0KfQ0KDQovLyA9PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PQ0KLy8gRmV0Y2ggaGVscGVycw0KLy8gPT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0NCmFzeW5jIGZ1bmN0aW9uIHRyeUZldGNoKHVybCwgdGltZW91dCA9IDYwMDApIHsNCiAgY29uc3QgciA9IGF3YWl0IGZldGNoKHVybCwgeyBzaWduYWw6IEFib3J0U2lnbmFsLnRpbWVvdXQodGltZW91dCkgfSk7DQogIGlmICghci5vaykgdGhyb3cgbmV3IEVycm9yKGBIVFRQICR7ci5zdGF0dXN9YCk7DQogIHJldHVybiByLmpzb24oKTsNCn0NCg0KYXN5bmMgZnVuY3Rpb24gZmV0Y2hXaXRoRmFsbGJhY2soZGlyZWN0VXJsLCB3b3JrZXJQYXRoKSB7DQogIC8vIFRyeSBkaXJlY3QgZmlyc3QNCiAgdHJ5IHsgcmV0dXJuIGF3YWl0IHRyeUZldGNoKGRpcmVjdFVybCwgNTAwMCk7IH0gY2F0Y2ggKGUpIHt9DQogIC8vIFRyeSB3b3JrZXINCiAgdHJ5IHsgcmV0dXJuIGF3YWl0IHRyeUZldGNoKGAke0FQSV9CQVNFfSR7d29ya2VyUGF0aH1gLCA4MDAwKTsgfSBjYXRjaCAoZSkge30NCiAgdGhyb3cgbmV3IEVycm9yKCdBbGwgc291cmNlcyBmYWlsZWQnKTsNCn0NCg0KLy8gPT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0NCi8vIERhdGEgZmV0Y2hlcnMNCi8vID09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09DQphc3luYyBmdW5jdGlvbiBmZXRjaFNlcnZlcnMoKSB7DQogIHRyeSB7DQogICAgY29uc3QgcmF3ID0gYXdhaXQgZmV0Y2hXaXRoRmFsbGJhY2soDQogICAgICBgJHtESVJFQ1RfQVBJfS9zZXJ2ZXJzYCwNCiAgICAgICcvYXBpL3NlcnZlcnMnDQogICAgKTsNCiAgICBjb25zdCBkYXRhID0gQXJyYXkuaXNBcnJheShyYXcpDQogICAgICA/IHJhdy5tYXAocyA9PiAoeyAuLi5zLCBJZDogeyBVUzE6ICdOQTEnLCBVUzI6ICdOQTInLCBFVTE6ICdFVTEnIH1bcy5JZF0gfHwgcy5JZCB9KSkNCiAgICAgIDogcmF3Ow0KICAgIHN0b3JlLnNlcnZlcnMgICA9IGRhdGE7DQogICAgc3RvcmUubGFzdEZldGNoLnNlcnZlcnMgPSBEYXRlLm5vdygpOw0KICAgIHN0b3JlLmVycm9ycy5zZXJ2ZXJzICAgID0gbnVsbDsNCiAgICBicm9hZGNhc3QoeyB0eXBlOiAnU0VSVkVSU19VUERBVEUnLCBkYXRhIH0pOw0KICB9IGNhdGNoIChlKSB7DQogICAgc3RvcmUuZXJyb3JzLnNlcnZlcnMgPSBlLm1lc3NhZ2U7DQogICAgYnJvYWRjYXN0KHsgdHlwZTogJ1NFUlZFUlNfRVJST1InLCBlcnJvcjogZS5tZXNzYWdlIH0pOw0KICB9DQp9DQoNCmFzeW5jIGZ1bmN0aW9uIGZldGNoUGxheWVycyhzZXJ2ZXIpIHsNCiAgY29uc3QgYXBpSWQgPSBBUElfSURTW3NlcnZlcl07DQogIHRyeSB7DQogICAgY29uc3QgZGF0YSA9IGF3YWl0IGZldGNoV2l0aEZhbGxiYWNrKA0KICAgICAgYCR7RElSRUNUX0FQSX0vcGxheWVycz9zZXJ2ZXJJZD0ke2FwaUlkfWAsDQogICAgICBgL2FwaS9wbGF5ZXJzP3NlcnZlcj0ke3NlcnZlcn1gDQogICAgKTsNCiAgICBzdG9yZS5wbGF5ZXJzW3NlcnZlcl0gICA9IGRhdGE7DQogICAgc3RvcmUubGFzdEZldGNoW3NlcnZlcl0gPSBEYXRlLm5vdygpOw0KICAgIHN0b3JlLmVycm9yc1tzZXJ2ZXJdICAgID0gbnVsbDsNCiAgICBicm9hZGNhc3QoeyB0eXBlOiAnUExBWUVSU19VUERBVEUnLCBzZXJ2ZXIsIGRhdGEgfSk7DQogIH0gY2F0Y2ggKGUpIHsNCiAgICBzdG9yZS5lcnJvcnNbc2VydmVyXSA9IGUubWVzc2FnZTsNCiAgICBicm9hZGNhc3QoeyB0eXBlOiAnUExBWUVSU19FUlJPUicsIHNlcnZlciwgZXJyb3I6IGUubWVzc2FnZSB9KTsNCiAgfQ0KfQ0KDQphc3luYyBmdW5jdGlvbiBmZXRjaEZpdmVtKHNlcnZlcikgew0KICBjb25zdCBjZnggPSBGSVZFTV9DRlhbc2VydmVyXTsNCiAgdHJ5IHsNCiAgICBjb25zdCBkYXRhID0gYXdhaXQgdHJ5RmV0Y2goYCR7RklWRU1fQVBJfS8ke2NmeH1gLCA1MDAwKQ0KICAgICAgLmNhdGNoKCgpID0+IHRyeUZldGNoKGAke0FQSV9CQVNFfS9hcGkvZml2ZW0/c2VydmVyPSR7c2VydmVyfWAsIDgwMDApKTsNCiAgICBzdG9yZS5maXZlbVtzZXJ2ZXJdID0gZGF0YTsNCiAgICBicm9hZGNhc3QoeyB0eXBlOiAnRklWRU1fVVBEQVRFJywgc2VydmVyLCBkYXRhIH0pOw0KICB9IGNhdGNoIChlKSB7DQogICAgYnJvYWRjYXN0KHsgdHlwZTogJ0ZJVkVNX0VSUk9SJywgc2VydmVyLCBlcnJvcjogZS5tZXNzYWdlIH0pOw0KICB9DQp9DQoNCmFzeW5jIGZ1bmN0aW9uIGVuc3VyZVNlcnZlckRhdGEoc2VydmVyKSB7DQogIGNvbnN0IGFnZSA9IERhdGUubm93KCkgLSAoc3RvcmUubGFzdEZldGNoW3NlcnZlcl0gfHwgMCk7DQogIGlmIChhZ2UgPiBQT0xMX0lOVEVSVkFMKSB7DQogICAgYXdhaXQgUHJvbWlzZS5hbGwoW2ZldGNoUGxheWVycyhzZXJ2ZXIpLCBmZXRjaEZpdmVtKHNlcnZlcildKTsNCiAgfQ0KfQ0KDQphc3luYyBmdW5jdGlvbiBmZXRjaEFsbCgpIHsNCiAgYXdhaXQgUHJvbWlzZS5hbGwoWw0KICAgIGZldGNoU2VydmVycygpLA0KICAgIGZldGNoUGxheWVycygnTkExJyksDQogICAgZmV0Y2hQbGF5ZXJzKCdOQTInKSwNCiAgICBmZXRjaFBsYXllcnMoJ0VVMScpLA0KICAgIGZldGNoRml2ZW0oJ05BMScpLA0KICAgIGZldGNoRml2ZW0oJ05BMicpLA0KICAgIGZldGNoRml2ZW0oJ0VVMScpLA0KICBdKTsNCn0NCg0KZnVuY3Rpb24gZ2V0U25hcHNob3QoKSB7DQogIHJldHVybiB7DQogICAgc2VydmVyczogc3RvcmUuc2VydmVycywNCiAgICBwbGF5ZXJzOiBzdG9yZS5wbGF5ZXJzLA0KICAgIGZpdmVtOiAgIHN0b3JlLmZpdmVtLA0KICAgIGVycm9yczogIHN0b3JlLmVycm9ycywNCiAgfTsNCn0NCg0KLy8gPT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0NCi8vIFBvbGxpbmcgbG9vcA0KLy8gPT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0NCmFzeW5jIGZ1bmN0aW9uIHBvbGwoKSB7DQogIGlmIChwb3J0cy5zaXplID4gMCkgew0KICAgIGF3YWl0IGZldGNoQWxsKCk7DQogIH0NCiAgc2V0VGltZW91dChwb2xsLCBQT0xMX0lOVEVSVkFMKTsNCn0NCg0KLy8gU3RhcnQgcG9sbGluZw0KcG9sbCgpOw==');
 // Patch the HTML for cnr.ysb.one context:
 //   1. Update og:url and logo tag
 //   2. Inject a tiny script that converts /na1 paths → #/na1 hash so the SPA
@@ -159,13 +160,8 @@ async function fetchWithFallback(url) {
       cf:      { cacheTtl: 10, cacheEverything: false },
     });
     if (r.ok) return await r.json();
-    if (r.status === 429) {
-      const e = new Error('rate_limited');
-      e.code = 429;
-      throw e;
-    }
   } catch (e) {
-    if (e.code === 429) throw e;
+    // Fall through to proxy and IP-direct fallback paths.
   }
 
   // Race all proxies in parallel — take the first success
@@ -253,6 +249,7 @@ async function fetchViaIp(originalUrl) {
 
 // Tier 3: module-level memory cache (survives within a single isolate)
 const memCache = new Map();
+const ENABLE_KV_WRITES = true;
 
 // Safe KV wrapper — returns null instead of throwing on 429 or quota errors
 async function kvGet(kv, key, type = 'json') {
@@ -263,8 +260,296 @@ async function kvGet(kv, key, type = 'json') {
   }
 }
 async function kvPut(kv, key, value, opts) {
+  if (!ENABLE_KV_WRITES) {
+    // attempt to buffer the KV write when writes are disabled
+    try {
+      await bufferKvPut(globalThis.__env__, key, value, opts).catch(() => null);
+    } catch { /* swallow */ }
+    return;
+  }
+  // If DO reports KV is blocked, buffer instead of writing
+  try {
+    if (await isKvBlocked(globalThis.__env__)) {
+      await bufferKvPut(globalThis.__env__, key, value, opts).catch(() => null);
+      return;
+    }
+  } catch { /* ignore and try normal put */ }
   try { await kv.put(key, value, opts); }
-  catch (e) { console.warn(`[KV] put failed for ${key}:`, e.message); }
+  catch (e) {
+    console.warn(`[KV] put failed for ${key}:`, e.message);
+    // If quota error, mark blocked state in the write buffer
+    if (isKvQuotaError(e)) {
+      try { await markKvBlocked(globalThis.__env__); } catch { /* best-effort */ }
+    }
+  }
+}
+
+const WRITE_BUFFER_DO = 'CNRWriteBuffer';
+
+function writeBufferStub(env) {
+  if (!env.CNR_WRITE_BUFFER) return null;
+  return env.CNR_WRITE_BUFFER.get(env.CNR_WRITE_BUFFER.idFromName('global'));
+}
+
+async function bufferHistorySnapshot(env, server, dateKey, snapshot) {
+  const stub = writeBufferStub(env);
+  if (!stub) return false;
+  await stub.fetch('https://write-buffer/enqueue', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ kind: 'history', server, dateKey, snapshot }),
+  });
+  return true;
+}
+
+async function bufferLeaderboardWarm(env, key, data, ttlSeconds) {
+  const stub = writeBufferStub(env);
+  if (!stub) return false;
+  await stub.fetch('https://write-buffer/enqueue', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ kind: 'leaderboard', key, data, ttlSeconds }),
+  });
+  return true;
+}
+
+async function bufferKvPut(env, key, value, opts) {
+  const stub = writeBufferStub(env);
+  if (!stub) return false;
+  const ttlSeconds = opts && opts.expirationTtl ? opts.expirationTtl : 0;
+  await stub.fetch('https://write-buffer/enqueue', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ kind: 'raw', key, value, ttlSeconds }),
+  });
+  return true;
+}
+
+// Ask the DO to mark KV as blocked until next reset window
+async function markKvBlocked(env) {
+  const stub = writeBufferStub(env);
+  if (!stub) return false;
+  await stub.fetch('https://write-buffer/block', { method: 'POST' }).catch(() => null);
+  // update local cache
+  memCache.set('kvBlocked', { _ts: Date.now(), blocked: true });
+  return true;
+}
+
+// Check whether KV is currently blocked (cached for 30s)
+async function isKvBlocked(env) {
+  const cached = memCache.get('kvBlocked');
+  const now = Date.now();
+  if (cached && (now - cached._ts) < 30 * 1000) return cached.blocked;
+  const stub = writeBufferStub(env);
+  if (!stub) return false;
+  try {
+    const r = await stub.fetch('https://write-buffer/state');
+    if (!r.ok) return false;
+    const s = await r.json();
+    const blockedUntil = Number(s?.blockedUntil || 0);
+    const blocked = blockedUntil && Date.now() < blockedUntil;
+    memCache.set('kvBlocked', { _ts: now, blocked });
+    return blocked;
+  } catch (e) {
+    return false;
+  }
+}
+
+async function flushBufferedWrites(env) {
+  const stub = writeBufferStub(env);
+  if (!stub) return null;
+  const r = await stub.fetch('https://write-buffer/flush', { method: 'POST' });
+  try { return await r.json(); }
+  catch { return null; }
+}
+
+async function getBufferedHistory(env, server) {
+  const stub = writeBufferStub(env);
+  if (!stub) return [];
+  const r = await stub.fetch(`https://write-buffer/history?server=${encodeURIComponent(server)}`);
+  if (!r.ok) return [];
+  const data = await r.json();
+  return Array.isArray(data?.days) ? data.days : [];
+}
+
+function isKvQuotaError(err) {
+  const text = `${err?.message || ''} ${err?.status || ''} ${err?.code || ''}`.toLowerCase();
+  return text.includes('429') || text.includes('too many requests') || text.includes('quota');
+}
+
+function nextUtcMidnightPlusBuffer(now = Date.now()) {
+  const d = new Date(now);
+  d.setUTCHours(24, 0, 0, 0);
+  return d.getTime() + 60_000;
+}
+
+export class CNRWriteBuffer {
+  constructor(state, env) {
+    this.state = state;
+    this.env = env;
+  }
+
+  async getDirtyKeys() {
+    const dirty = await this.state.storage.get('dirty');
+    return Array.isArray(dirty) ? dirty : [];
+  }
+
+  async setDirtyKeys(dirty) {
+    await this.state.storage.put('dirty', dirty);
+  }
+
+  async markDirty(key) {
+    const dirty = await this.getDirtyKeys();
+    if (!dirty.includes(key)) {
+      dirty.push(key);
+      await this.setDirtyKeys(dirty);
+    }
+  }
+
+  async clearDirty(key) {
+    const dirty = (await this.getDirtyKeys()).filter(item => item !== key);
+    await this.setDirtyKeys(dirty);
+  }
+
+  async enqueue(job) {
+    if (job.kind === 'history') {
+      const key = `history:${job.server}:${job.dateKey}`;
+      const days = await this.state.storage.get(key);
+      const list = Array.isArray(days) ? days : [];
+      list.push(job.snapshot);
+      await this.state.storage.put(key, list);
+      await this.markDirty(key);
+      return { queued: true, key, count: list.length };
+    }
+
+    if (job.kind === 'leaderboard') {
+      const key = `pending:${job.key}`;
+      await this.state.storage.put(key, {
+        data: job.data,
+        ttlSeconds: job.ttlSeconds,
+      });
+      await this.markDirty(key);
+      return { queued: true, key };
+    }
+
+    if (job.kind === 'raw') {
+      const key = `pending:${job.key}`;
+      await this.state.storage.put(key, {
+        data: job.value,
+        ttlSeconds: job.ttlSeconds,
+      });
+      await this.markDirty(key);
+      return { queued: true, key };
+    }
+
+    return { queued: false };
+  }
+
+  async flush() {
+    const blockedUntil = Number(await this.state.storage.get('blockedUntil') || 0);
+    if (blockedUntil && Date.now() < blockedUntil) {
+      return { flushed: 0, blockedUntil };
+    }
+
+    const dirty = await this.getDirtyKeys();
+    let flushed = 0;
+
+    for (const key of dirty) {
+      try {
+        if (key.startsWith('history:')) {
+          const snapshots = await this.state.storage.get(key);
+          if (Array.isArray(snapshots) && snapshots.length) {
+            await this.env.CNR_CACHE.put(key, JSON.stringify(snapshots), {
+              expirationTtl: 7 * 24 * 3600,
+            });
+          }
+          await this.state.storage.delete(key);
+          await this.clearDirty(key);
+          flushed += 1;
+          continue;
+        }
+
+        if (key.startsWith('pending:')) {
+          const pending = await this.state.storage.get(key);
+          if (pending) {
+            const rawKey = key.slice('pending:'.length);
+            await this.env.CNR_CACHE.put(rawKey, JSON.stringify({
+              data: pending.data,
+              _ts: Date.now(),
+            }), {
+              expirationTtl: Math.max(Number(pending.ttlSeconds || 0) * 4, 60),
+            });
+          }
+          await this.state.storage.delete(key);
+          await this.clearDirty(key);
+          flushed += 1;
+        }
+      } catch (e) {
+        if (isKvQuotaError(e)) {
+          const retryUntil = nextUtcMidnightPlusBuffer();
+          await this.state.storage.put('blockedUntil', retryUntil);
+          return { flushed, blockedUntil: retryUntil };
+        }
+        console.warn('[WriteBuffer] flush failed:', e.message);
+        return { flushed, error: e.message };
+      }
+    }
+
+    await this.state.storage.delete('blockedUntil');
+    return { flushed, blockedUntil: 0 };
+  }
+
+  async readHistory(server) {
+    const dirty = await this.getDirtyKeys();
+    const days = [];
+    for (const key of dirty) {
+      if (!key.startsWith(`history:${server}:`)) continue;
+      const date = key.split(':').slice(2).join(':');
+      const snapshots = await this.state.storage.get(key);
+      if (Array.isArray(snapshots) && snapshots.length) {
+        days.push({ date, snapshots });
+      }
+    }
+    return days;
+  }
+
+  async fetch(request) {
+    const url = new URL(request.url);
+    if (request.method === 'POST' && url.pathname === '/enqueue') {
+      const job = await request.json();
+      return new Response(JSON.stringify(await this.enqueue(job)), {
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    if (request.method === 'POST' && url.pathname === '/flush') {
+      return new Response(JSON.stringify(await this.flush()), {
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    if (request.method === 'GET' && url.pathname === '/history') {
+      const server = url.searchParams.get('server');
+      const days = server ? await this.readHistory(server) : [];
+      return new Response(JSON.stringify({ days }), {
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    if (request.method === 'GET' && url.pathname === '/state') {
+      const dirty = await this.getDirtyKeys();
+      const blockedUntil = Number(await this.state.storage.get('blockedUntil') || 0);
+      return new Response(JSON.stringify({ dirty: dirty.length, blockedUntil }), {
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    if (request.method === 'POST' && url.pathname === '/block') {
+      const until = Number((await this.state.storage.get('blockedUntil')) || 0) || 0;
+      const newUntil = nextUtcMidnightPlusBuffer();
+      await this.state.storage.put('blockedUntil', newUntil);
+      return new Response(JSON.stringify({ blockedUntil: newUntil }), {
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    return new Response('not found', { status: 404 });
+  }
 }
 
 // CF Cache API helpers — keyed by a fake URL under the worker's origin
@@ -331,7 +616,9 @@ async function cached(env, key, ttl, url) {
       data = await fetchWithFallback(url);
     } catch (e) {
       if (e.code === 429) {
-        await kvPut(env.CNR_CACHE, `429:${key}`, '1', { expirationTtl: 300 });
+        if (ENABLE_KV_WRITES) {
+          await kvPut(env.CNR_CACHE, `429:${key}`, '1', { expirationTtl: 300 });
+        }
       }
       // Serve best stale data available
       if (kvStored)  return kvStored.data;
@@ -349,12 +636,7 @@ async function cached(env, key, ttl, url) {
     // CF Cache (always — zero KV ops)
     await cfCachePut(key, payload, Math.max(ttl * 4, 60));
 
-    // KV (best effort — may fail if quota exceeded)
-    await kvPut(
-      env.CNR_CACHE, key,
-      JSON.stringify(payload),
-      { expirationTtl: Math.max(ttl * 4, 60) }
-    );
+    // KV writes are disabled to avoid exhausting the daily put quota.
 
     return data;
   })();
@@ -423,8 +705,29 @@ async function handleHistory(url, env, origin) {
       days.push({ date: dateKey, snapshots });
     }
   }
+  // Merge any buffered (not-yet-flushed) history from the Durable Object
+  try {
+    const buffered = await getBufferedHistory(env, server);
+    if (Array.isArray(buffered) && buffered.length) {
+      for (const b of buffered) {
+        const exists = days.find(d => d.date === b.date);
+        if (exists) {
+          // append buffered snapshots after existing ones
+          exists.snapshots = exists.snapshots.concat(b.snapshots || []);
+        } else {
+          days.push({ date: b.date, snapshots: b.snapshots || [] });
+        }
+      }
+      // sort by date desc
+      days.sort((a, b) => b.date.localeCompare(a.date));
+    }
+  } catch (e) {
+    console.warn('history: failed to read buffered history', e.message || e);
+  }
   return json({ server, days }, TTL.history, origin);
 }
+
+
 
 async function handleProxy(url, origin) {
   const target = url.searchParams.get('url');
@@ -871,7 +1174,8 @@ async function handleRequest(request, env) {
 
   // ── Static files: sw.js, shared-worker.js, manifest.json ────────────────
   if (url.pathname === '/sw.js') {
-    return new Response(swJs, {
+    const text = await (await fetch(new URL('./sw.js', import.meta.url))).text();
+    return new Response(text, {
       headers: {
         'Content-Type':  'application/javascript',
         'Cache-Control': 'no-cache', // always fetch latest SW
@@ -880,7 +1184,7 @@ async function handleRequest(request, env) {
     });
   }
   if (url.pathname === '/shared-worker.js') {
-    return new Response(sharedWorkerJs, {
+    return new Response(SHARED_WORKER_JS, {
       headers: {
         'Content-Type':  'application/javascript',
         'Cache-Control': 'public, max-age=60',
@@ -983,15 +1287,21 @@ async function handleScheduled(env) {
     const timeKey = now.toISOString();
 
     // ── History snapshots ──────────────────────────────────────────────────────
-    // Batch all server updates together to minimise sequential KV writes
+    // Batch all server updates together and enqueue into the Durable Object
     await Promise.all(data.map(async s => {
       const localId = REVERSE_SERVER_ID_MAP[s.Id];
       if (!localId) return;
-      const histKey = `history:${localId}:${dateKey}`;
-      let day = await kvGet(env.CNR_CACHE, histKey);
-      if (!Array.isArray(day)) day = [];
-      day.push({ t: timeKey, players: s.Players, queue: s.QueuedPlayers, max: s.MaxPlayers });
-      await kvPut(env.CNR_CACHE, histKey, JSON.stringify(day), { expirationTtl: 7 * 24 * 3600 });
+      const snapshot = { t: timeKey, players: s.Players, queue: s.QueuedPlayers, max: s.MaxPlayers };
+      // Try to buffer; on failure we fallback to CF/memory only (no KV writes)
+      const buffered = await bufferHistorySnapshot(env, localId, dateKey, snapshot).catch(() => false);
+      if (!buffered) {
+        // Best-effort: keep in-memory CF cache so reads still see recent data
+        const histKey = `history:${localId}:${dateKey}`;
+        let day = await cfCacheGet(histKey) || [];
+        if (!Array.isArray(day)) day = [];
+        day.push(snapshot);
+        await cfCachePut(histKey, { data: day, _ts: Date.now() }, 7 * 24 * 3600);
+      }
     }));
 
     // ── Preload enrichment leaderboard data ────────────────────────────────────
@@ -1008,9 +1318,11 @@ async function handleScheduled(env) {
           if (!stored || !stored._ts || Date.now() - stored._ts > TTL.leaderboard * 1000) {
             try {
               const fresh = await fetchWithFallback(`${LEADERBOARD_API}/${region}/${stat}/1`);
-              await kvPut(env.CNR_CACHE, key, JSON.stringify({ data: fresh, _ts: Date.now() }), {
-                expirationTtl: Math.max(TTL.leaderboard * 4, 60)
-              });
+              // Buffer leaderboard writes when possible; otherwise write to CF cache only
+              const buffered = await bufferLeaderboardWarm(env, key, fresh, Math.max(TTL.leaderboard * 4, 60)).catch(() => false);
+              if (!buffered) {
+                await cfCachePut(key, { data: fresh, _ts: Date.now() }, Math.max(TTL.leaderboard * 4, 60));
+              }
             } catch (e) {
               console.warn(`cron: enrichment preload failed for ${region}:${stat}`, e.message);
             }
@@ -1034,3 +1346,5 @@ export default {
     ctx.waitUntil(handleScheduled(env));
   },
 };
+
+// Durable Object class is exported where it's declared above.

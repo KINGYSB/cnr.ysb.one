@@ -35,15 +35,8 @@
 <link rel="dns-prefetch" href="https://servers-frontend.fivem.net">
 <link rel="preconnect" href="https://api.gtacnr.net" crossorigin>
 <link rel="preconnect" href="https://cnr.ysb.one" crossorigin>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/bebas-neue@5.0.0/index.css" media="print" onload="this.media='all'">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/ibm-plex-sans@5.0.0/index.css" media="print" onload="this.media='all'">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/jetbrains-mono@5.0.0/index.css" media="print" onload="this.media='all'">
-<noscript>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/bebas-neue@5.0.0/index.css">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/ibm-plex-sans@5.0.0/index.css">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource/jetbrains-mono@5.0.0/index.css">
-</noscript>
-
+<link rel="stylesheet" href="/fonts/fonts.css" media="print" onload="this.media='all'">
+<noscript>JavaScript is required to run this application. Please enable JavaScript.</noscript>
 <style>
 :root {
   --bg: #0a0a0b;
@@ -776,6 +769,17 @@ input { font: inherit; }
   align-items: center;
   gap: 6px;
 }
+.player-name-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.player-joined {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-tertiary);
+  letter-spacing: 0.02em;
+}
 .player-card-meta .dot {
   width: 6px;
   height: 6px;
@@ -795,6 +799,13 @@ input { font: inherit; }
   font-family: var(--font-mono);
 }
 .uid-copy:hover { color: var(--accent-bright); }
+
+.share-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.share-btn[hidden] { display: none !important; }
 
 .lb-section-head {
   font-family: var(--font-mono);
@@ -1218,7 +1229,7 @@ body.is-loading .app textarea {
 // CONFIG
 // =============================================================================
 const CONFIG = {
-  API_BASE: 'https://cnr.ysb.one',
+  API_BASE: (typeof location !== 'undefined' && location.origin) ? location.origin : 'https://cnr.ysb.one',
   SERVERS: {
     NA1: {
       display: 'NA1',
@@ -1436,6 +1447,29 @@ function debounce(fn, ms) {
 function getYourPing() { return state.yourPings[state.selectedServer]; }
 function getAvgPing() { return state.avgPings[state.selectedServer]; }
 
+function formatRelativeTime(value) {
+  if (!value) return null;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+  const seconds = Math.max(0, Math.floor((Date.now() - parsed.getTime()) / 1000));
+  if (seconds < 60) return `${seconds}s ago`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
+
+function getPlayerJoinTimestamp(player) {
+  return player?.Timestamp || player?.Username?.Timestamp || player?.joinedAt || player?.joined_at || null;
+}
+
+function formatPlayerJoinLabel(player) {
+  const relative = formatRelativeTime(getPlayerJoinTimestamp(player));
+  return relative ? `joined ${relative}` : null;
+}
+
 // =============================================================================
 // RESTART TIME CALCULATION
 // Uses live in-game time function if available, falls back to static timer
@@ -1629,6 +1663,9 @@ const api = {
       `https://gtacnr.net/api/leaderboards/${region}/${stat}/${page}`
     );
   },
+  history(server) {
+    return apiGet(`/api/history?server=${server}`);
+  },
   fivem(server) {
     const cfx = CONFIG.SERVERS[server].cfx;
     const fivemUrl = `https://servers-frontend.fivem.net/api/servers/single/${cfx}`;
@@ -1772,6 +1809,7 @@ function renderServerView() {
       <div class="restart-row" id="restart-row">${renderRestartRow()}</div>
       <div class="actions">
         <a class="btn btn-primary" href="fivem://connect/${s.cfx}">Join server</a>
+        ${navigator.share ? `<button class="btn share-btn" data-action="share-current">Share</button>` : ''}
         <button class="btn" id="notify-toggle">${state.notificationsOn ? 'Notifications on' : 'Notify on restart'}</button>
       </div>
       <div class="players-header">
@@ -2090,9 +2128,13 @@ function renderPlayerList() {
         const badgesHtml = badges.map(b =>
           `<span class="badge ${b.cls}" title="${escapeHtml(b.title)}">${escapeHtml(b.text)}</span>`
         ).join(' ');
+        const joinedLabel = formatPlayerJoinLabel(p);
         return `<div class="list-row">
           <span class="rank">${i + 1}</span>
-          <span class="player-name"><a data-lookup="${escapeHtml(name)}">${escapeHtml(name)}</a></span>
+          <span class="player-name-wrap">
+            <span class="player-name"><a data-lookup="${escapeHtml(name)}">${escapeHtml(name)}</a></span>
+            ${joinedLabel ? `<span class="player-joined">${escapeHtml(joinedLabel)}</span>` : ''}
+          </span>
           <span class="player-badges">${badgesHtml}</span>
           <span class="ping">${ping}</span>
         </div>`;
@@ -2101,8 +2143,30 @@ function renderPlayerList() {
   `;
 }
 
+async function shareCurrentServer() {
+  if (!navigator.share) return;
+  const s = CONFIG.SERVERS[state.selectedServer];
+  const live = state.servers?.find(x => x.Id === state.selectedServer);
+  const players = live && (Date.now() - new Date(live.LastHeartbeatDateTime).getTime()) / 1000 < 30
+    ? `${Math.min(live.Players, live.MaxPlayers)}/${live.MaxPlayers} players`
+    : 'status unavailable';
+  const url = `${location.origin}/#/${state.selectedServer.toLowerCase()}`;
+  try {
+    await navigator.share({
+      title: `CNR Tracker · ${s.display}`,
+      text: `${s.display} is showing ${players}`,
+      url,
+    });
+  } catch (e) {}
+}
+
 async function loadServerData() {
   const targetServer = state.selectedServer;
+
+  // Ask SharedWorker to refresh this server, but continue regardless
+  if (sharedWorker) {
+    try { sharedWorker.port.postMessage({ type: 'FETCH_SERVER', server: targetServer }); } catch (e) {}
+  }
 
   api.servers().then(raw => {
     const data = Array.isArray(raw)
@@ -2226,6 +2290,7 @@ async function loadServerData() {
     if (state.route.view === 'server' && !document.hidden) loadServerData();
   }, 30000);
 }
+
 
 function renderConnectionBanner() {
   if (hasDataFetchError()) {
@@ -2685,6 +2750,14 @@ document.addEventListener('click', e => {
     navigate(`/leaderboards/${lbLink.dataset.lb}/${state.selectedRegion}/1`);
     return;
   }
+  const actionBtn = e.target.closest('[data-action]');
+  if (actionBtn) {
+    if (actionBtn.dataset.action === 'share-current') {
+      e.preventDefault();
+      shareCurrentServer();
+    }
+    return;
+  }
   const regionBtn = e.target.closest('[data-region]');
   if (regionBtn) {
     const region = regionBtn.dataset.region;
@@ -2762,6 +2835,19 @@ document.addEventListener('visibilitychange', () => {
   if (!document.hidden && state.route.view === 'server') {
     loadServerData();
   }
+});
+
+document.addEventListener('keydown', e => {
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  const tag = e.target?.tagName ? e.target.tagName.toLowerCase() : '';
+  if (tag === 'input' || tag === 'textarea' || e.target?.isContentEditable) return;
+
+  const key = e.key.toLowerCase();
+  if (key === '1') navigate('/na1');
+  else if (key === '2') navigate('/na2');
+  else if (key === '3') navigate('/eu1');
+  else if (key === 'l') navigate('/leaderboards');
+  else if (key === 'f') navigate('/lookup');
 });
 
 document.addEventListener('click', e => {
@@ -2999,24 +3085,7 @@ function processFivemData(targetServer, data) {
   }
 }
 
-// Patch loadServerData to use SharedWorker when available
-const _origLoadServerData = loadServerData;
-function loadServerData() {
-  if (sharedWorker) {
-    // Tell shared worker to ensure this server's data is fresh
-    sharedWorker.port.postMessage({ type: 'FETCH_SERVER', server: state.selectedServer });
-    // Still start the restart ticker and ping measurement locally
-    startRestartTicker();
-    const s = CONFIG.SERVERS[state.selectedServer];
-    measureYourPing(s.ip).then(p => {
-      state.yourPings[state.selectedServer] = p;
-      updateServerStats();
-    }).catch(() => {});
-    loadEnrichmentData(state.selectedServer);
-    return;
-  }
-  _origLoadServerData();
-}
+
 
 // =============================================================================
 // Offline detection
@@ -3035,25 +3104,27 @@ window.addEventListener('offline', updateOnlineStatus);
 updateOnlineStatus();
 
 // =============================================================================
-// Service Worker registration
+// Service Worker registration (skip in local dev)
 // =============================================================================
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js', { scope: '/' })
-      .then(reg => {
-        console.log('[SW] registered', reg.scope);
-        // Prompt for update if new SW is waiting
-        reg.addEventListener('updatefound', () => {
-          const newWorker = reg.installing;
-          newWorker.addEventListener('statechange', () => {
-            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-              newWorker.postMessage({ type: 'SKIP_WAITING' });
-            }
+{
+  const _isLocalDev = location.hostname === '127.0.0.1' || location.hostname === 'localhost';
+  if (!_isLocalDev && 'serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/sw.js', { scope: '/' })
+        .then(reg => {
+          console.log('[SW] registered', reg.scope);
+          reg.addEventListener('updatefound', () => {
+            const newWorker = reg.installing;
+            newWorker.addEventListener('statechange', () => {
+              if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                newWorker.postMessage({ type: 'SKIP_WAITING' });
+              }
+            });
           });
-        });
-      })
-      .catch(e => console.warn('[SW] registration failed:', e));
-  });
+        })
+        .catch(e => console.warn('[SW] registration failed:', e));
+    });
+  }
 }
 
 // Connect Shared Worker

@@ -6,6 +6,11 @@ kv_namespaces = [
   { binding = "CNR_CACHE", id = "83873a054dcb463eb2cf4283b2868fc1" }
 ]
 
+[durable_objects]
+bindings = [
+  { name = "CNR_WRITE_BUFFER", class_name = "CNRWriteBuffer" }
+]
+
 [triggers]
 crons = ["*/5 * * * *"]
 
@@ -22,3 +27,7 @@ fallthrough = false
 [observability.logs]
 enabled = false
 invocation_logs = true
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = [ "CNRWriteBuffer" ]

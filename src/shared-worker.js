@@ -4,7 +4,7 @@
 // Tabs track their own selected server independently.
 // =============================================================================
 
-const API_BASE   = 'https://cnr.ysb.one';
+const API_BASE   = (typeof location !== 'undefined' && location.origin) ? location.origin : 'https://cnr.ysb.one';
 const DIRECT_API = 'https://api.gtacnr.net/cnr';
 const FIVEM_API  = 'https://servers-frontend.fivem.net/api/servers/single';
 
