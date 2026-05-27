@@ -1,0 +1,22 @@
+{
+  "name": "cnr",
+  "main": "src/worker.js",
+  "workers_dev": false,
+  "preview_urls": false,
+  "compatibility_date": "2026-05-26",
+  "routes": [
+    {
+      "pattern": "cnr.ysb.one",
+      "zone_name": "ysb.one",
+      "custom_domain": true,
+      "enabled": true,
+      "previews_enabled": false
+    }
+  ],
+  "kv_namespaces": [
+    {
+      "id": "83873a054dcb463eb2cf4283b2868fc1",
+      "binding": "CNR_CACHE"
+    }
+  ]
+}
