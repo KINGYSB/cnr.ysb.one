@@ -1489,6 +1489,7 @@ function restoreState() {
     state.fivem = snap.fivem || {};
     state.playerPings = snap.playerPings || {};
   } catch (e) {}
+  try { state.notificationsOn = localStorage.getItem('cnr-notif') === '1'; } catch (e) {}
 }
 
 // number formatters
@@ -2286,6 +2287,7 @@ async function toggleNotifications() {
   }
   state.notificationsOn = !state.notificationsOn;
   state.notifSent = { ten: false, two: false };
+  try { localStorage.setItem('cnr-notif', state.notificationsOn ? '1' : '0'); } catch (e) {}
   const btn = $('#notify-toggle');
   if (btn) btn.textContent = state.notificationsOn ? 'Notifications on' : 'Notify on restart';
 }
