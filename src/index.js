@@ -435,7 +435,8 @@ function isEmbedBot(request) {
 async function handleEmbed(serverId, request, env) {
   const status     = await fetchEmbedStatus(env);
   const baseUrl    = new URL(request.url).origin; // https://cnr.ysb.one
-  const imageUrl   = `${baseUrl}/embed-image${serverId ? '/' + serverId.toLowerCase() : ''}`;
+  const ts       = Math.floor(Date.now() / (TTL.embedImage * 1000));
+  const imageUrl = `${baseUrl}/embed-image${serverId ? '/' + serverId.toLowerCase() : ''}?t=${ts}`;
   const spaTarget  = serverId
     ? `${SITE_SPA}#/${serverId.toLowerCase()}`
     : SITE_SPA;
@@ -541,8 +542,9 @@ async function handleEmbedImage(serverId, request, env) {
     return new Response('cache purged', { headers: { 'Content-Type': 'text/plain' } });
   }
 
-  // Redirect to weserv using a stable public SVG URL so weserv can fetch it
-  const svgUrl = `https://cnr.ysb.one/embed-svg${serverId ? '/' + serverId.toLowerCase() : ''}`;
+  // Timestamp changes every 10 min — forces weserv to refetch instead of serving stale cache
+  const ts     = Math.floor(Date.now() / (TTL.embedImage * 1000));
+  const svgUrl = `https://cnr.ysb.one/embed-svg${serverId ? '/' + serverId.toLowerCase() : ''}?t=${ts}`;
   const pngUrl = `https://images.weserv.nl/?url=${encodeURIComponent(svgUrl)}&output=png&w=1200&h=630`;
   return Response.redirect(pngUrl, 302);
 }
