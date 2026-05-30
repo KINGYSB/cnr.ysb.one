@@ -1199,6 +1199,26 @@ async function handleRequest(request, env) {
       },
     });
   }
+  if (url.pathname === '/favicon.svg') {
+    const svg = `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="CNR Tracker">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fbbf24"/>
+      <stop offset="1" stop-color="#f59e0b"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="#0a0a0b"/>
+  <circle cx="32" cy="32" r="21" fill="url(#g)"/>
+  <path d="M21 25h22v6H35v18h-6V31H21z" fill="#0a0a0b"/>
+</svg>`;
+    return new Response(svg, {
+      headers: {
+        'Content-Type':  'image/svg+xml; charset=utf-8',
+        'Cache-Control': 'public, max-age=86400',
+      },
+    });
+  }
   if (url.pathname === '/fonts/fonts.css') {
     return new Response('/* fonts.css intentionally empty: fallbacks live in cnr.html */\n', {
       headers: {

@@ -10,10 +10,10 @@
   "categories": ["games", "utilities"],
   "icons": [
     {
-      "src": "/images/favicon.png",
+      "src": "/favicon.svg",
       "sizes": "any",
-      "type": "image/png",
-      "purpose": "any maskable"
+      "type": "image/svg+xml",
+      "purpose": "any"
     }
   ],
   "shortcuts": [
@@ -22,28 +22,28 @@
       "short_name": "NA1",
       "description": "North America 1 server status",
       "url": "/na1",
-      "icons": [{ "src": "/images/favicon.png", "sizes": "any" }]
+      "icons": [{ "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" }]
     },
     {
       "name": "NA2",
       "short_name": "NA2",
       "description": "North America 2 server status",
       "url": "/na2",
-      "icons": [{ "src": "/images/favicon.png", "sizes": "any" }]
+      "icons": [{ "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" }]
     },
     {
       "name": "EU1",
       "short_name": "EU1",
       "description": "Europe 1 server status",
       "url": "/eu1",
-      "icons": [{ "src": "/images/favicon.png", "sizes": "any" }]
+      "icons": [{ "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" }]
     },
     {
       "name": "Leaderboards",
       "short_name": "Boards",
       "description": "Player leaderboards",
       "url": "/#/leaderboards",
-      "icons": [{ "src": "/images/favicon.png", "sizes": "any" }]
+      "icons": [{ "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" }]
     }
   ],
   "screenshots": [
