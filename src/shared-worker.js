@@ -6,12 +6,12 @@
 
 const API_BASE   = (typeof location !== 'undefined' && location.origin) ? location.origin : 'https://cnr.ysb.one';
 const DIRECT_API = 'https://api.gtacnr.net/cnr';
-// FiveM public frontend API disabled; shared worker will not query it.
+const FIVEM_API  = 'https://frontend.cfx-services.net/api/servers/single';
+
+const FIVEM_CFX = { NA1: 'a6aope', NA2: 'zlvypp', EU1: 'kx98er' };
 const API_IDS   = { NA1: 'US1', NA2: 'US2', EU1: 'EU1' };
 
-// Increase poll interval to reduce upstream requests when tabs are open.
-// Previously 5 minutes; raise to 10 minutes to lower request volume.
-const POLL_INTERVAL = 10 * 60 * 1000; // 10m
+const POLL_INTERVAL = 5 * 60 * 1000; // 5m
 
 // Connected ports (one per tab)
 const ports = new Set();
@@ -20,6 +20,7 @@ const ports = new Set();
 const store = {
   servers:     null,
   players:     { NA1: null, NA2: null, EU1: null },
+  fivem:       { NA1: null, NA2: null, EU1: null },
   lastFetch:   { servers: 0, NA1: 0, NA2: 0, EU1: 0 },
   errors:      {},
 };
@@ -121,12 +122,22 @@ async function fetchPlayers(server) {
   }
 }
 
-// fetchFivem removed: FiveM public API is no longer available.
+async function fetchFivem(server) {
+  const cfx = FIVEM_CFX[server];
+  try {
+    const data = await tryFetch(`${FIVEM_API}/${cfx}`, 5000)
+      .catch(() => tryFetch(`${API_BASE}/api/fivem?server=${server}`, 8000));
+    store.fivem[server] = data;
+    broadcast({ type: 'FIVEM_UPDATE', server, data });
+  } catch (e) {
+    broadcast({ type: 'FIVEM_ERROR', server, error: e.message });
+  }
+}
 
 async function ensureServerData(server) {
   const age = Date.now() - (store.lastFetch[server] || 0);
   if (age > POLL_INTERVAL) {
-    await Promise.all([fetchPlayers(server)]);
+    await Promise.all([fetchPlayers(server), fetchFivem(server)]);
   }
 }
 
@@ -136,7 +147,9 @@ async function fetchAll() {
     fetchPlayers('NA1'),
     fetchPlayers('NA2'),
     fetchPlayers('EU1'),
-    // FiveM lookups removed
+    fetchFivem('NA1'),
+    fetchFivem('NA2'),
+    fetchFivem('EU1'),
   ]);
 }
 
@@ -144,6 +157,7 @@ function getSnapshot() {
   return {
     servers: store.servers,
     players: store.players,
+    fivem:   store.fivem,
     errors:  store.errors,
   };
 }

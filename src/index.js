@@ -61,28 +61,31 @@ const PUBLIC_PROXIES = [
 const SERVERS_API    = 'https://api.gtacnr.net/cnr/servers';
 const PLAYERS_API    = 'https://api.gtacnr.net/cnr/players';
 const LEADERBOARD_API = 'https://gtacnr.net/api/leaderboards';
+const FIVEM_API      = 'https://frontend.cfx-services.net/api/servers/single';
 
 const SERVER_ID_MAP         = { NA1: 'US1', NA2: 'US2', EU1: 'EU1' };
 const REVERSE_SERVER_ID_MAP = { US1: 'NA1', US2: 'NA2', EU1: 'EU1' };
 
-// FiveM public frontend API disabled: removed to comply with Cfx.re changes.
-// Use the CNR APIs or an authenticated/official integration instead.
+const FIVEM_CFX = {
+  NA1: 'a6aope',
+  NA2: 'zlvypp',
+  EU1: 'kx98er',
+};
 
 const ALLOWED_PROXY_HOSTS = [
   'api.gtacnr.net',
   'gtacnr.net',
+  'frontend.cfx-services.net',
 ];
 
 const TTL = {
-  // Increase default TTLs to reduce upstream fetches. Servers/players
-  // updated less frequently to lower total requests while keeping data
-  // reasonably fresh.
-  servers:     60,
-  players:     60,
+  servers:     20,
+  players:     20,
+  fivem:       30,
   leaderboard: 604800,
   history:     300,
-  embed:       30,    // embed HTML cache at CF edge (seconds)
-  embedImage:  600,   // CF edge cache TTL for embed SVG responses
+  embed:      30,    // embed HTML cache at CF edge (seconds)
+  embedImage: 600,   // CF edge cache TTL for embed SVG responses
 };
 
 // ─── Embed visual config (matches your CSS vars) ──────────────────────────────
@@ -680,11 +683,17 @@ async function handleLeaderboard(url, env, origin) {
   return json(data, TTL.leaderboard, origin);
 }
 
-// `handleFivem` removed — FiveM public frontend API is not used.
+async function handleFivem(url, env, origin) {
+  const server = url.searchParams.get('server');
+  const cfx    = FIVEM_CFX[server];
+  if (!cfx) return err(400, 'Invalid server', origin);
+  const data = await cached(env, `fivem:${server}`, TTL.fivem, `${FIVEM_API}/${cfx}`);
+  return json(data, TTL.fivem, origin);
+}
 
 async function handleHistory(url, env, origin) {
   const server = url.searchParams.get('server');
-  if (!server || !SERVER_META[server]) return err(400, 'Invalid server', origin);
+  if (!server || !FIVEM_CFX[server]) return err(400, 'Invalid server', origin);
   const days = [];
   const now  = new Date();
   for (let i = 0; i < 7; i++) {
@@ -1259,7 +1268,8 @@ async function handleRequest(request, env) {
         return await handlePlayers(url, env, origin);
       case '/api/leaderboard':
         return await handleLeaderboard(url, env, origin);
-      // '/api/fivem' removed — FiveM frontend endpoint is no longer supported.
+      case '/api/fivem':
+        return await handleFivem(url, env, origin);
       case '/api/history':
         return await handleHistory(url, env, origin);
       case '/proxy':
