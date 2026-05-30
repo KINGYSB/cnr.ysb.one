@@ -21,9 +21,8 @@ const SHELL_URLS = [
 const API_PATTERNS = [
   /\/api\/servers/,
   /\/api\/players/,
-  /\/api\/fivem/,
   /api\.gtacnr\.net/,
-  /servers-frontend\.fivem\.net/,
+  // removed FiveM proxy/cache patterns — FiveM frontend API is not used
 ];
 
 // Leaderboard patterns — cache with stale-while-revalidate (6h TTL)

@@ -10,7 +10,7 @@
 <meta property="og:description" content="Live server status and leaderboards for GTA Crime and Robbery">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://ysb.one">
-<link rel="icon" type="image/png" href="images/favicon.png">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="manifest" href="/manifest.json">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -32,7 +32,7 @@
 <link rel="dns-prefetch" href="https://api.gtacnr.net">
 <link rel="dns-prefetch" href="https://gtacnr.net">
 <link rel="dns-prefetch" href="https://cnr.ysb.one">
-<link rel="dns-prefetch" href="https://servers-frontend.fivem.net">
+<!-- removed servers-frontend.fivem.net dns-prefetch -->
 <link rel="preconnect" href="https://api.gtacnr.net" crossorigin>
 <link rel="preconnect" href="https://cnr.ysb.one" crossorigin>
 <link rel="stylesheet" href="/fonts/fonts.css" media="print" onload="this.media='all'">
@@ -1214,12 +1214,12 @@ body.is-loading .app textarea {
     <div class="footer-left">
       <span>cnrtracker · cnr.ysb.one</span>
       <span class="footer-sep">·</span>
-      <span>data from <a href="https://gtacnr.net" target="_blank" rel="noopener">gtacnr.net</a> &amp; <a href="https://fivem.net" target="_blank" rel="noopener">fivem.net</a></span>
+      <span>data from <a href="https://gtacnr.net" target="_blank" rel="noopener">gtacnr.net</a></span>
     </div>
     <div class="footer-right">
       <a href="https://gtacnr.net/privacy" target="_blank" rel="noopener">gtacnr privacy</a>
       <span class="footer-sep">·</span>
-      <a href="https://policies.fivem.net/privacy/" target="_blank" rel="noopener">fivem privacy</a>
+      <a href="https://gtacnr.net/privacy" target="_blank" rel="noopener">privacy</a>
     </div>
   </footer>
 </div>
@@ -1397,7 +1397,6 @@ const state = {
   selectedServer: 'NA1',
   players: {},
   playerPings: {},
-  fivem: {},
   yourPings: {},
   avgPings: {},
   restartTimers: {},
@@ -1523,7 +1522,7 @@ function hasDataFetchError() {
   });
   
   const hasRecentData = Object.keys(CONFIG.SERVERS).some(id => {
-    return state.fivem[id]?.Data?.players?.length > 0;
+    return Array.isArray(state.players[id]) && state.players[id].length > 0;
   });
   
   return allOffline && hasRecentData;
@@ -1541,7 +1540,6 @@ function persistState() {
       avgPings: state.avgPings,
       restartTimers: state.restartTimers,
       restartCalculatedAts: state.restartCalculatedAts,
-      fivem: state.fivem,
       playerPings: state.playerPings,
       ts: Date.now()
     };
@@ -1561,7 +1559,7 @@ function restoreState() {
     state.avgPings = snap.avgPings || {};
     state.restartTimers = snap.restartTimers || {};
     state.restartCalculatedAts = snap.restartCalculatedAts || {};
-    state.fivem = snap.fivem || {};
+    // `fivem` data removed; rely on CNR API (`players` + `servers`) instead
     state.playerPings = snap.playerPings || {};
   } catch (e) {}
   try { state.notificationsOn = localStorage.getItem('cnr-notif') === '1'; } catch (e) {}
@@ -1667,10 +1665,9 @@ const api = {
     return apiGet(`/api/history?server=${server}`);
   },
   fivem(server) {
-    const cfx = CONFIG.SERVERS[server].cfx;
-    const fivemUrl = `https://servers-frontend.fivem.net/api/servers/single/${cfx}`;
-
-    return apiGet(`/api/fivem?server=${server}`, fivemUrl);
+    // FiveM public frontend API disabled. Return null placeholder so the
+    // UI falls back to CNR player lists / cached values.
+    return Promise.resolve(null);
   }
 };
 
@@ -1800,6 +1797,7 @@ function renderServerView() {
       <div class="restart-row" id="restart-row">${renderRestartRow()}</div>
       <div class="actions">
         <a class="btn btn-primary" href="fivem://connect/${s.cfx}">Join server</a>
+        <button class="btn" data-connect-copy="${s.cfx}" title="Copy connect URL">Copy</button>
         ${navigator.share ? `<button class="btn share-btn" data-action="share-current">Share</button>` : ''}
         <button class="btn" id="notify-toggle">${state.notificationsOn ? 'Notifications on' : 'Notify on restart'}</button>
       </div>
@@ -2192,80 +2190,7 @@ async function loadServerData() {
     }
   });
 
-  api.fivem(targetServer).then(data => {
-    state.fivem[targetServer] = data;
-    
-     // --- RESTART TIMER ---
-    let timeStr = data?.Data?.vars?.Time || data?.Data?.vars?.sv_timeOfDay;
-    if (!timeStr && data?.Data?.vars) {
-      const shortDays = ['Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun', 'Mon'];
-      for (const key in data.Data.vars) {
-        const val = data.Data.vars[key];
-        if (typeof val === 'string' && shortDays.some(d => val.startsWith(d)) && /^\d{1,2}:\d{2}/.test(val.split(' ')[1] || '')) {
-          timeStr = val;
-          break;
-        }
-      }
-    }
-
-    if (timeStr) {
-      try {
-        const timeStringToDate = (ts) => {
-          const regex = /^(.+) (\d{2}):(\d{2})$/;
-          const days = ['Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun', 'Mon'];
-          const match = ts.match(regex);
-          if (!match) throw new Error('invalid timeString');
-          const date = new Date(2025, 0, days.indexOf(match[1]));
-          date.setHours(parseInt(match[2]), parseInt(match[3]), 0, 0);
-          return date;
-        };
-
-        const timeStringToSecondsRemaining = (ts) => {
-          const regex = /^(.+) (\d{2}):(\d{2})$/;
-          const days = ['Sat', 'Fri', 'Thu', 'Wed', 'Tue', 'Mon', 'Sun'];
-          const match = ts.match(regex);
-          if (!match) throw new Error('invalid timeString');
-          return days.indexOf(match[1]) * 24 * 60 + (24 - parseInt(match[2]) - 1) * 60 + (60 - parseInt(match[3]));
-        };
-
-        const fetchTime = Date.now();
-        const lastIngameDate = timeStringToDate(timeStr);
-
-        const getCurrentIngameTime = () => {
-          const elapsed = Date.now() - fetchTime;
-          const ingameMs = (elapsed + 4000) * 60;
-          const current = new Date(lastIngameDate.getTime() + ingameMs);
-          const days = ['Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun', 'Mon'];
-          return `${days[current.getDay()]} ${String(current.getHours()).padStart(2,'0')}:${String(current.getMinutes()).padStart(2,'0')}`;
-        };
-
-        state.restartTimers[targetServer] = timeStringToSecondsRemaining(getCurrentIngameTime());
-        state.restartCalculatedAts[targetServer] = Date.now();
-        if (!state._ingameTimeFn) state._ingameTimeFn = {};
-        state._ingameTimeFn[targetServer] = () => timeStringToSecondsRemaining(getCurrentIngameTime());
-      } catch (e) {
-        console.warn('restart timer parse failed', e);
-      }
-    }
-    // ------------------------------
-    
-    const players = data?.Data?.players || [];
-    if (players.length) {
-      const pings = players.map(p => p.ping).filter(x => x > 0);
-      if (pings.length) state.avgPings[targetServer] = Math.round(pings.reduce((a,b) => a+b, 0) / pings.length);
-      const pingMap = {};
-      players.forEach(p => { if (p.name && p.ping) pingMap[p.name.toLowerCase()] = p.ping; });
-      state.playerPings[targetServer] = pingMap;
-    }
-    if (state.selectedServer === targetServer) {
-      updateServerStats();
-      if (state.players[targetServer]) {
-        const wrap = $('#player-list-wrap');
-        if (wrap) wrap.innerHTML = renderPlayerList();
-      }
-    }
-    persistState();
-  }).catch(e => { console.warn('fivem', e); });
+  // FiveM frontend lookups removed — rely on CNR `players` + `servers` data instead.
 
   const s = CONFIG.SERVERS[targetServer];
   measureYourPing(s.ip).then(p => {
@@ -2677,19 +2602,13 @@ async function runLookup(query) {
   await Promise.all(regionServers.map(async serverId => {
     try {
       const players = await api.players(serverId);
-      const fivem = state.fivem[serverId] || await api.fivem(serverId).catch(() => null);
-      const pingMap = {};
-      if (fivem?.Data?.players) {
-        fivem.Data.players.forEach(p => {
-          if (p.name) pingMap[p.name.toLowerCase()] = p.ping;
-        });
-      }
+      // No live FiveM pings available; use players list to mark online and uid
       players.forEach(p => {
         const name = p.Username.Username;
         if (matchesByName[name]) {
           matchesByName[name].onlineOn = serverId;
           matchesByName[name].uid = p.Uid;
-          matchesByName[name].ping = pingMap[name.toLowerCase()] || null;
+          matchesByName[name].ping = null;
         }
       });
     } catch (e) {}
@@ -2791,6 +2710,15 @@ document.addEventListener('click', e => {
     setTimeout(() => { copyBtn.textContent = orig; }, 1500);
     return;
   }
+  const connectCopyBtn = e.target.closest('[data-connect-copy]');
+  if (connectCopyBtn) {
+    const url = `fivem://connect/${connectCopyBtn.dataset.connectCopy}`;
+    navigator.clipboard?.writeText(url);
+    const orig = connectCopyBtn.textContent;
+    connectCopyBtn.textContent = 'Copied!';
+    setTimeout(() => { connectCopyBtn.textContent = orig; }, 1500);
+    return;
+  }
   if (e.target.id === 'notify-toggle') {
     toggleNotifications();
     return;
@@ -2853,6 +2781,85 @@ document.addEventListener('click', e => {
 });
 
 restoreState();
+
+// Show a popup on every visit asking users to ping the Discord for v2 API support
+function showDiscordPopup() {
+  try {
+    // respect prior dismissals
+    try { if (localStorage.getItem('cnr.discordPopupDismissed')) return; } catch (e) {}
+    const css = `
+      #discord-popup-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.6); display:flex; align-items:center; justify-content:center; z-index:9999; }
+      #discord-popup { background:var(--surface); color:var(--text); border-radius:10px; padding:22px; width:min(720px,92%); box-shadow:0 10px 30px rgba(0,0,0,0.6); border:1px solid var(--border); font-family:var(--font-body); }
+      #discord-popup h2 { margin:0 0 8px 0; font-size:18px; }
+      #discord-popup p { margin:8px 0 14px 0; color:var(--text-secondary); }
+      #discord-popup .actions { text-align:right; display:flex; gap:8px; justify-content:flex-end; }
+      #discord-popup .btn { background:var(--accent); color:#000; padding:8px 12px; border-radius:6px; border:none; cursor:pointer; font-weight:700; }
+      #discord-popup .btn.secondary { background:transparent; color:var(--text); border:1px solid var(--border); }
+      #discord-popup a { color:var(--accent-bright); text-decoration:underline; }
+    `;
+    const s = document.createElement('style'); s.textContent = css; document.head.appendChild(s);
+
+    const overlay = document.createElement('div'); overlay.id = 'discord-popup-overlay';
+    overlay.innerHTML = `
+      <div id="discord-popup" role="dialog" aria-modal="true">
+        <h2>We need your help!</h2>
+        <p>Please ask <strong>Sasino</strong> in <a href="https://gtacnr.net/discord" target="_blank" rel="noopener">gtacnr.net/discord</a> to release the GTA CNR API v2 crew tag endpoint so you can look at your stats and opposing crew stats and figure out when the server will restart.</p>
+        <div style="font-size:13px;color:var(--text-muted);margin-bottom:10px;">Quick message to ping Sasino:</div>
+        <textarea id="discord-copy-text" style="width:100%;height:64px;border-radius:6px;padding:10px;border:1px solid var(--border);background:var(--surface);color:var(--text);font-family:var(--font-body);"></textarea>
+        <div class="actions">
+          <button id="discord-copy-btn" class="btn">Copy message</button>
+          <button id="discord-open-btn" class="btn secondary">Open Discord</button>
+          <button id="discord-close-btn" class="btn secondary">Close</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+
+    // generate a random, personable variant to display (shows 'Sasino' not the ID)
+    const variants = [
+      "Hey Sasino, could you release the GTA CNR API v2 crew tag endpoint so you can look at your stats and opposing crew stats and figure out when the server will restart?",
+      "Hi Sasino, would you be able to release the GTA CNR API v2 crew tag endpoint so you can look at your stats and opposing crew stats and figure out when the server will restart?",
+      "Sasino, quick favor: can you release the GTA CNR API v2 crew tag endpoint so you can look at your stats and opposing crew stats and figure out when the server will restart?",
+      "Hi Sasino, can you release the GTA CNR API v2 crew tag endpoint so you can look at your stats and opposing crew stats and figure out when the server will restart?",
+      "Hey Sasino, could you open the GTA CNR API v2 crew tag endpoint so you can look at your stats and opposing crew stats and figure out when the server will restart?",
+      "Sasino, can you please release the GTA CNR API v2 crew tag endpoint so you can look at your stats and opposing crew stats and figure out when the server will restart?",
+      "Hi Sasino, any chance you can release the GTA CNR API v2 crew tag endpoint so you can look at your stats and opposing crew stats and figure out when the server will restart?",
+      "Hey Sasino, please release the GTA CNR API v2 crew tag endpoint when you can so you can look at your stats and opposing crew stats and figure out when the server will restart?"
+    ];
+    const pick = variants[Math.floor(Math.random() * variants.length)];
+    const textarea = document.getElementById('discord-copy-text');
+    if (textarea) textarea.value = pick;
+
+    document.getElementById('discord-copy-btn').addEventListener('click', async () => {
+      try {
+        let txt = document.getElementById('discord-copy-text').value || '';
+        // Replace the visible 'Sasino' with the Discord mention when copying
+        txt = txt.replace(/\bSasino\b/g, '<@453127468283592714>');
+        // Ensure the message asks in #general and includes the provided invite link
+        if (!/\#general/.test(txt)) {
+          txt = txt + ' in #general';
+        }
+        if (!/https?:\/\/discord\.gg\//.test(txt)) {
+          txt = txt + ' https://discord.gg/fvGju5Ec7W';
+        }
+        await navigator.clipboard.writeText(txt);
+        const b = document.getElementById('discord-copy-btn');
+        b.textContent = 'Copied!';
+        setTimeout(() => { b.textContent = 'Copy message'; }, 2000);
+      } catch (e) { console.warn('copy failed', e); }
+    });
+    document.getElementById('discord-open-btn').addEventListener('click', () => {
+      window.open('https://gtacnr.net/discord', '_blank', 'noopener');
+    });
+    document.getElementById('discord-close-btn').addEventListener('click', () => {
+      try { localStorage.setItem('cnr.discordPopupDismissed', '1'); } catch (e) {}
+      overlay.remove();
+    });
+  } catch (e) { console.warn('discord popup failed', e); }
+}
+
+// show it on every page visit
+showDiscordPopup();
 
 // =============================================================================
 // IndexedDB — leaderboard cache (survives page reloads unlike localStorage)
@@ -2927,11 +2934,6 @@ document.addEventListener('mouseover', e => {
         state.players[server] = data;
       }).catch(() => {});
     }
-    if (!state.fivem[server]) {
-      api.fivem(server).then(data => {
-        state.fivem[server] = data;
-      }).catch(() => {});
-    }
   }, 120); // 120ms delay — avoids prefetch on accidental hover
 });
 
@@ -2963,10 +2965,9 @@ function connectSharedWorker() {
 function handleSharedWorkerMessage(msg) {
   switch (msg.type) {
     case 'INIT': {
-      const { servers, players, fivem } = msg.data;
+      const { servers, players } = msg.data;
       if (servers) state.servers = servers;
       Object.keys(players).forEach(id => { if (players[id]) state.players[id] = players[id]; });
-      Object.keys(fivem).forEach(id => { if (fivem[id]) processFivemData(id, fivem[id]); });
       if (state.route.view === 'server') {
         const pills = $('#server-pills');
         if (pills) pills.innerHTML = renderServerPills();
@@ -2998,18 +2999,7 @@ function handleSharedWorkerMessage(msg) {
       persistState();
       break;
     }
-    case 'FIVEM_UPDATE': {
-      processFivemData(msg.server, msg.data);
-      if (state.selectedServer === msg.server && state.route.view === 'server') {
-        updateServerStats();
-        if (state.players[msg.server]) {
-          const wrap = $('#player-list-wrap');
-          if (wrap) wrap.innerHTML = renderPlayerList();
-        }
-      }
-      persistState();
-      break;
-    }
+    // FIVEM_UPDATE handling removed — FiveM public frontend API disabled
     case 'SERVERS_ERROR':
       state.serversError = msg.error;
       updateServerStats();
@@ -3018,65 +3008,7 @@ function handleSharedWorkerMessage(msg) {
 }
 
 // Extract fivem data processing so both SharedWorker and direct polling use same logic
-function processFivemData(targetServer, data) {
-  state.fivem[targetServer] = data;
-
-  // Restart timer
-  let timeStr = data?.Data?.vars?.Time || data?.Data?.vars?.sv_timeOfDay;
-  if (!timeStr && data?.Data?.vars) {
-    const shortDays = ['Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun', 'Mon'];
-    for (const key in data.Data.vars) {
-      const val = data.Data.vars[key];
-      if (typeof val === 'string' && shortDays.some(d => val.startsWith(d)) && /^\d{1,2}:\d{2}/.test(val.split(' ')[1] || '')) {
-        timeStr = val;
-        break;
-      }
-    }
-  }
-  if (timeStr) {
-    try {
-      const timeStringToDate = (ts) => {
-        const regex = /^(.+) (\d{2}):(\d{2})$/;
-        const days  = ['Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun', 'Mon'];
-        const match = ts.match(regex);
-        if (!match) throw new Error('invalid timeString');
-        const date = new Date(2025, 0, days.indexOf(match[1]));
-        date.setHours(parseInt(match[2]), parseInt(match[3]), 0, 0);
-        return date;
-      };
-      const timeStringToSecondsRemaining = (ts) => {
-        const regex = /^(.+) (\d{2}):(\d{2})$/;
-        const days  = ['Sat', 'Fri', 'Thu', 'Wed', 'Tue', 'Mon', 'Sun'];
-        const match = ts.match(regex);
-        if (!match) throw new Error('invalid timeString');
-        return days.indexOf(match[1]) * 24 * 60 + (24 - parseInt(match[2]) - 1) * 60 + (60 - parseInt(match[3]));
-      };
-      const fetchTime     = Date.now();
-      const lastIngameDate = timeStringToDate(timeStr);
-      const getCurrentIngameTime = () => {
-        const elapsed = Date.now() - fetchTime;
-        const ingameMs = (elapsed + 4000) * 60;
-        const current  = new Date(lastIngameDate.getTime() + ingameMs);
-        const days     = ['Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun', 'Mon'];
-        return `${days[current.getDay()]} ${String(current.getHours()).padStart(2,'0')}:${String(current.getMinutes()).padStart(2,'0')}`;
-      };
-      state.restartTimers[targetServer]        = timeStringToSecondsRemaining(getCurrentIngameTime());
-      state.restartCalculatedAts[targetServer] = Date.now();
-      if (!state._ingameTimeFn) state._ingameTimeFn = {};
-      state._ingameTimeFn[targetServer] = () => timeStringToSecondsRemaining(getCurrentIngameTime());
-    } catch (e) { console.warn('restart timer parse failed', e); }
-  }
-
-  // Pings
-  const players = data?.Data?.players || [];
-  if (players.length) {
-    const pings = players.map(p => p.ping).filter(x => x > 0);
-    if (pings.length) state.avgPings[targetServer] = Math.round(pings.reduce((a,b)=>a+b,0)/pings.length);
-    const pingMap = {};
-    players.forEach(p => { if (p.name && p.ping) pingMap[p.name.toLowerCase()] = p.ping; });
-    state.playerPings[targetServer] = pingMap;
-  }
-}
+// processFivemData removed — rely on CNR API (players + servers) instead
 
 
 
