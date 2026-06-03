@@ -20,6 +20,11 @@ globs = ["**/*.html"]
 fallthrough = true
 
 [[rules]]
+type = "Data"
+globs = ["**/*.woff2"]
+fallthrough = true
+
+[[rules]]
 type = "CompiledWasm"
 globs = ["**/*.wasm"]
 fallthrough = false

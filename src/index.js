@@ -15,6 +15,9 @@ import cnrHtmlRaw      from './cnr.html';
 // Note: serve sw.js and shared-worker.js by fetching their raw text at runtime
 // to avoid bundler/module object coercion when returning as a Response.
 import manifestJson    from './manifest.json';
+import bebasNeueFont   from './fonts/BebasNeue.woff2';
+import ibmPlexSansFont from './fonts/IBMPlexSans.woff2';
+import jetBrainsMonoFont from './fonts/JetBrainsMono.woff2';
 const SHARED_WORKER_JS = atob('Ly8gPT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0NCi8vIENOUiBUcmFja2VyIMOi4oKs4oCdIFNoYXJlZCBXb3JrZXINCi8vIEFsbCB0YWJzIHNoYXJlIG9uZSBwb2xsaW5nIGxvb3AgaW5zdGVhZCBvZiBlYWNoIHBvbGxpbmcgaW5kZXBlbmRlbnRseS4NCi8vIFRhYnMgdHJhY2sgdGhlaXIgb3duIHNlbGVjdGVkIHNlcnZlciBpbmRlcGVuZGVudGx5Lg0KLy8gPT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0NCg0KY29uc3QgQVBJX0JBU0UgICA9ICh0eXBlb2YgbG9jYXRpb24gIT09ICd1bmRlZmluZWQnICYmIGxvY2F0aW9uLm9yaWdpbikgPyBsb2NhdGlvbi5vcmlnaW4gOiAnaHR0cHM6Ly9jbnIueXNiLm9uZSc7DQpjb25zdCBESVJFQ1RfQVBJID0gJ2h0dHBzOi8vYXBpLmd0YWNuci5uZXQvY25yJzsNCmNvbnN0IEZJVkVNX0FQSSAgPSAnaHR0cHM6Ly9zZXJ2ZXJzLWZyb250ZW5kLmZpdmVtLm5ldC9hcGkvc2VydmVycy9zaW5nbGUnOw0KDQpjb25zdCBGSVZFTV9DRlggPSB7IE5BMTogJ2E2YW9wZScsIE5BMjogJ3psdnlwcCcsIEVVMTogJ2t4OThlcicgfTsNCmNvbnN0IEFQSV9JRFMgICA9IHsgTkExOiAnVVMxJywgTkEyOiAnVVMyJywgRVUxOiAnRVUxJyB9Ow0KDQpjb25zdCBQT0xMX0lOVEVSVkFMID0gMzAwMDA7IC8vIDMwcw0KDQovLyBDb25uZWN0ZWQgcG9ydHMgKG9uZSBwZXIgdGFiKQ0KY29uc3QgcG9ydHMgPSBuZXcgU2V0KCk7DQoNCi8vIFNoYXJlZCBkYXRhIHN0b3JlDQpjb25zdCBzdG9yZSA9IHsNCiAgc2VydmVyczogICAgIG51bGwsDQogIHBsYXllcnM6ICAgICB7IE5BMTogbnVsbCwgTkEyOiBudWxsLCBFVTE6IG51bGwgfSwNCiAgZml2ZW06ICAgICAgIHsgTkExOiBudWxsLCBOQTI6IG51bGwsIEVVMTogbnVsbCB9LA0KICBsYXN0RmV0Y2g6ICAgeyBzZXJ2ZXJzOiAwLCBOQTE6IDAsIE5BMjogMCwgRVUxOiAwIH0sDQogIGVycm9yczogICAgICB7fSwNCn07DQoNCi8vID09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09DQovLyBDb25uZWN0aW9uIGhhbmRsZXINCi8vID09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09DQpzZWxmLm9uY29ubmVjdCA9IGV2ZW50ID0+IHsNCiAgY29uc3QgcG9ydCA9IGV2ZW50LnBvcnRzWzBdOw0KICBwb3J0cy5hZGQocG9ydCk7DQoNCiAgcG9ydC5vbm1lc3NhZ2UgPSBlID0+IGhhbmRsZU1lc3NhZ2UocG9ydCwgZS5kYXRhKTsNCg0KICBwb3J0Lm9uY2xvc2UgPSAoKSA9PiBwb3J0cy5kZWxldGUocG9ydCk7DQoNCiAgLy8gU2VuZCBjdXJyZW50IGRhdGEgaW1tZWRpYXRlbHkgdG8gbmV3IHRhYg0KICBwb3J0LnBvc3RNZXNzYWdlKHsgdHlwZTogJ0lOSVQnLCBkYXRhOiBnZXRTbmFwc2hvdCgpIH0pOw0KDQogIHBvcnQuc3RhcnQoKTsNCn07DQoNCi8vID09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09DQovLyBNZXNzYWdlIGhhbmRsZXINCi8vID09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09DQpmdW5jdGlvbiBoYW5kbGVNZXNzYWdlKHBvcnQsIG1zZykgew0KICBzd2l0Y2ggKG1zZy50eXBlKSB7DQogICAgY2FzZSAnRkVUQ0hfU0VSVkVSJzoNCiAgICAgIC8vIFRhYiBpcyBzd2l0Y2hpbmcgdG8gYSBzZXJ2ZXIgw6LigqzigJ0gZW5zdXJlIGl0cyBkYXRhIGlzIGZyZXNoDQogICAgICBlbnN1cmVTZXJ2ZXJEYXRhKG1zZy5zZXJ2ZXIpOw0KICAgICAgYnJlYWs7DQogICAgY2FzZSAnRk9SQ0VfUkVGUkVTSCc6DQogICAgICBmZXRjaEFsbCgpOw0KICAgICAgYnJlYWs7DQogIH0NCn0NCg0KLy8gPT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0NCi8vIEJyb2FkY2FzdCB0byBhbGwgY29ubmVjdGVkIHRhYnMNCi8vID09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09DQpmdW5jdGlvbiBicm9hZGNhc3QobXNnKSB7DQogIGZvciAoY29uc3QgcG9ydCBvZiBwb3J0cykgew0KICAgIHRyeSB7IHBvcnQucG9zdE1lc3NhZ2UobXNnKTsgfSBjYXRjaCAoZSkgeyBwb3J0cy5kZWxldGUocG9ydCk7IH0NCiAgfQ0KfQ0KDQovLyA9PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PQ0KLy8gRmV0Y2ggaGVscGVycw0KLy8gPT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0NCmFzeW5jIGZ1bmN0aW9uIHRyeUZldGNoKHVybCwgdGltZW91dCA9IDYwMDApIHsNCiAgY29uc3QgciA9IGF3YWl0IGZldGNoKHVybCwgeyBzaWduYWw6IEFib3J0U2lnbmFsLnRpbWVvdXQodGltZW91dCkgfSk7DQogIGlmICghci5vaykgdGhyb3cgbmV3IEVycm9yKGBIVFRQICR7ci5zdGF0dXN9YCk7DQogIHJldHVybiByLmpzb24oKTsNCn0NCg0KYXN5bmMgZnVuY3Rpb24gZmV0Y2hXaXRoRmFsbGJhY2soZGlyZWN0VXJsLCB3b3JrZXJQYXRoKSB7DQogIC8vIFRyeSBkaXJlY3QgZmlyc3QNCiAgdHJ5IHsgcmV0dXJuIGF3YWl0IHRyeUZldGNoKGRpcmVjdFVybCwgNTAwMCk7IH0gY2F0Y2ggKGUpIHt9DQogIC8vIFRyeSB3b3JrZXINCiAgdHJ5IHsgcmV0dXJuIGF3YWl0IHRyeUZldGNoKGAke0FQSV9CQVNFfSR7d29ya2VyUGF0aH1gLCA4MDAwKTsgfSBjYXRjaCAoZSkge30NCiAgdGhyb3cgbmV3IEVycm9yKCdBbGwgc291cmNlcyBmYWlsZWQnKTsNCn0NCg0KLy8gPT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0NCi8vIERhdGEgZmV0Y2hlcnMNCi8vID09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09DQphc3luYyBmdW5jdGlvbiBmZXRjaFNlcnZlcnMoKSB7DQogIHRyeSB7DQogICAgY29uc3QgcmF3ID0gYXdhaXQgZmV0Y2hXaXRoRmFsbGJhY2soDQogICAgICBgJHtESVJFQ1RfQVBJfS9zZXJ2ZXJzYCwNCiAgICAgICcvYXBpL3NlcnZlcnMnDQogICAgKTsNCiAgICBjb25zdCBkYXRhID0gQXJyYXkuaXNBcnJheShyYXcpDQogICAgICA/IHJhdy5tYXAocyA9PiAoeyAuLi5zLCBJZDogeyBVUzE6ICdOQTEnLCBVUzI6ICdOQTInLCBFVTE6ICdFVTEnIH1bcy5JZF0gfHwgcy5JZCB9KSkNCiAgICAgIDogcmF3Ow0KICAgIHN0b3JlLnNlcnZlcnMgICA9IGRhdGE7DQogICAgc3RvcmUubGFzdEZldGNoLnNlcnZlcnMgPSBEYXRlLm5vdygpOw0KICAgIHN0b3JlLmVycm9ycy5zZXJ2ZXJzICAgID0gbnVsbDsNCiAgICBicm9hZGNhc3QoeyB0eXBlOiAnU0VSVkVSU19VUERBVEUnLCBkYXRhIH0pOw0KICB9IGNhdGNoIChlKSB7DQogICAgc3RvcmUuZXJyb3JzLnNlcnZlcnMgPSBlLm1lc3NhZ2U7DQogICAgYnJvYWRjYXN0KHsgdHlwZTogJ1NFUlZFUlNfRVJST1InLCBlcnJvcjogZS5tZXNzYWdlIH0pOw0KICB9DQp9DQoNCmFzeW5jIGZ1bmN0aW9uIGZldGNoUGxheWVycyhzZXJ2ZXIpIHsNCiAgY29uc3QgYXBpSWQgPSBBUElfSURTW3NlcnZlcl07DQogIHRyeSB7DQogICAgY29uc3QgZGF0YSA9IGF3YWl0IGZldGNoV2l0aEZhbGxiYWNrKA0KICAgICAgYCR7RElSRUNUX0FQSX0vcGxheWVycz9zZXJ2ZXJJZD0ke2FwaUlkfWAsDQogICAgICBgL2FwaS9wbGF5ZXJzP3NlcnZlcj0ke3NlcnZlcn1gDQogICAgKTsNCiAgICBzdG9yZS5wbGF5ZXJzW3NlcnZlcl0gICA9IGRhdGE7DQogICAgc3RvcmUubGFzdEZldGNoW3NlcnZlcl0gPSBEYXRlLm5vdygpOw0KICAgIHN0b3JlLmVycm9yc1tzZXJ2ZXJdICAgID0gbnVsbDsNCiAgICBicm9hZGNhc3QoeyB0eXBlOiAnUExBWUVSU19VUERBVEUnLCBzZXJ2ZXIsIGRhdGEgfSk7DQogIH0gY2F0Y2ggKGUpIHsNCiAgICBzdG9yZS5lcnJvcnNbc2VydmVyXSA9IGUubWVzc2FnZTsNCiAgICBicm9hZGNhc3QoeyB0eXBlOiAnUExBWUVSU19FUlJPUicsIHNlcnZlciwgZXJyb3I6IGUubWVzc2FnZSB9KTsNCiAgfQ0KfQ0KDQphc3luYyBmdW5jdGlvbiBmZXRjaEZpdmVtKHNlcnZlcikgew0KICBjb25zdCBjZnggPSBGSVZFTV9DRlhbc2VydmVyXTsNCiAgdHJ5IHsNCiAgICBjb25zdCBkYXRhID0gYXdhaXQgdHJ5RmV0Y2goYCR7RklWRU1fQVBJfS8ke2NmeH1gLCA1MDAwKQ0KICAgICAgLmNhdGNoKCgpID0+IHRyeUZldGNoKGAke0FQSV9CQVNFfS9hcGkvZml2ZW0/c2VydmVyPSR7c2VydmVyfWAsIDgwMDApKTsNCiAgICBzdG9yZS5maXZlbVtzZXJ2ZXJdID0gZGF0YTsNCiAgICBicm9hZGNhc3QoeyB0eXBlOiAnRklWRU1fVVBEQVRFJywgc2VydmVyLCBkYXRhIH0pOw0KICB9IGNhdGNoIChlKSB7DQogICAgYnJvYWRjYXN0KHsgdHlwZTogJ0ZJVkVNX0VSUk9SJywgc2VydmVyLCBlcnJvcjogZS5tZXNzYWdlIH0pOw0KICB9DQp9DQoNCmFzeW5jIGZ1bmN0aW9uIGVuc3VyZVNlcnZlckRhdGEoc2VydmVyKSB7DQogIGNvbnN0IGFnZSA9IERhdGUubm93KCkgLSAoc3RvcmUubGFzdEZldGNoW3NlcnZlcl0gfHwgMCk7DQogIGlmIChhZ2UgPiBQT0xMX0lOVEVSVkFMKSB7DQogICAgYXdhaXQgUHJvbWlzZS5hbGwoW2ZldGNoUGxheWVycyhzZXJ2ZXIpLCBmZXRjaEZpdmVtKHNlcnZlcildKTsNCiAgfQ0KfQ0KDQphc3luYyBmdW5jdGlvbiBmZXRjaEFsbCgpIHsNCiAgYXdhaXQgUHJvbWlzZS5hbGwoWw0KICAgIGZldGNoU2VydmVycygpLA0KICAgIGZldGNoUGxheWVycygnTkExJyksDQogICAgZmV0Y2hQbGF5ZXJzKCdOQTInKSwNCiAgICBmZXRjaFBsYXllcnMoJ0VVMScpLA0KICAgIGZldGNoRml2ZW0oJ05BMScpLA0KICAgIGZldGNoRml2ZW0oJ05BMicpLA0KICAgIGZldGNoRml2ZW0oJ0VVMScpLA0KICBdKTsNCn0NCg0KZnVuY3Rpb24gZ2V0U25hcHNob3QoKSB7DQogIHJldHVybiB7DQogICAgc2VydmVyczogc3RvcmUuc2VydmVycywNCiAgICBwbGF5ZXJzOiBzdG9yZS5wbGF5ZXJzLA0KICAgIGZpdmVtOiAgIHN0b3JlLmZpdmVtLA0KICAgIGVycm9yczogIHN0b3JlLmVycm9ycywNCiAgfTsNCn0NCg0KLy8gPT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0NCi8vIFBvbGxpbmcgbG9vcA0KLy8gPT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0NCmFzeW5jIGZ1bmN0aW9uIHBvbGwoKSB7DQogIGlmIChwb3J0cy5zaXplID4gMCkgew0KICAgIGF3YWl0IGZldGNoQWxsKCk7DQogIH0NCiAgc2V0VGltZW91dChwb2xsLCBQT0xMX0lOVEVSVkFMKTsNCn0NCg0KLy8gU3RhcnQgcG9sbGluZw0KcG9sbCgpOw==');
 // Patch the HTML for cnr.ysb.one context:
 //   1. Update og:url and logo tag
@@ -101,10 +104,55 @@ const COLOR_MUTED   = '#a1a1aa';
 const COLOR_ACCENT  = '#f59e0b';
 
 const SERVER_META = {
-  NA1: { label: 'North America 1', maxPlayers: 128 },
-  NA2: { label: 'North America 2', maxPlayers: 128 },
-  EU1: { label: 'Europe 1',        maxPlayers: 128 },
+  NA1: { label: 'North America 1', location: 'Chicago, USA',      maxPlayers: 128 },
+  NA2: { label: 'North America 2', location: 'Chicago, USA',      maxPlayers: 128 },
+  EU1: { label: 'Europe 1',        location: 'Frankfurt, Germany', maxPlayers: 128 },
 };
+
+const SVG_FONTS = {
+  display: "'Bebas Neue', Impact, sans-serif",
+  body: "'IBM Plex Sans', system-ui, -apple-system, sans-serif",
+  mono: "'JetBrains Mono', Consolas, monospace",
+};
+
+function getSvgFontFaceCss(baseUrl) {
+  return `
+    @font-face {
+      font-family: 'Bebas Neue';
+      src: url('${baseUrl}/fonts/BebasNeue.woff2') format('woff2');
+      font-style: normal;
+      font-weight: 400;
+      font-display: swap;
+    }
+    @font-face {
+      font-family: 'IBM Plex Sans';
+      src: url('${baseUrl}/fonts/IBMPlexSans.woff2') format('woff2');
+      font-style: normal;
+      font-weight: 400 700;
+      font-display: swap;
+    }
+    @font-face {
+      font-family: 'JetBrains Mono';
+      src: url('${baseUrl}/fonts/JetBrainsMono.woff2') format('woff2');
+      font-style: normal;
+      font-weight: 400 700;
+      font-display: swap;
+    }
+  `;
+}
+
+function fontResponse(data) {
+  return new Response(data, {
+    headers: {
+      'Content-Type':  'font/woff2',
+      'Cache-Control': 'public, max-age=31536000, immutable',
+    },
+  });
+}
+
+function formatUtcStamp(date = new Date()) {
+  return `${date.toISOString().slice(0, 10)} ${date.toISOString().slice(11, 16)} UTC`;
+}
 
 // =============================================================================
 // CORS (unchanged)
@@ -774,17 +822,36 @@ async function fetchEmbedStatus(env) {
 
 async function _fetchEmbedStatusImpl(env) {
   // Fetch servers list + all three player counts in parallel, reusing KV cache
-  const [serverList, playersNA1, playersNA2, playersEU1] = await Promise.all([
+  const [serverList, playersNA1, playersNA2, playersEU1, fivemNA1, fivemNA2, fivemEU1] = await Promise.all([
     cached(env, 'servers', TTL.servers, SERVERS_API).catch(() => []),
     cached(env, 'players:US1', TTL.players, `${PLAYERS_API}?serverId=US1`).catch(() => []),
     cached(env, 'players:US2', TTL.players, `${PLAYERS_API}?serverId=US2`).catch(() => []),
     cached(env, 'players:EU1', TTL.players, `${PLAYERS_API}?serverId=EU1`).catch(() => []),
+    cached(env, 'fivem:NA1', TTL.fivem, `${FIVEM_API}/${FIVEM_CFX.NA1}`).catch(() => null),
+    cached(env, 'fivem:NA2', TTL.fivem, `${FIVEM_API}/${FIVEM_CFX.NA2}`).catch(() => null),
+    cached(env, 'fivem:EU1', TTL.fivem, `${FIVEM_API}/${FIVEM_CFX.EU1}`).catch(() => null),
   ]);
+
+  const avgPingFromFivem = data => {
+    const players = data?.Data?.players;
+    if (!Array.isArray(players) || !players.length) return null;
+    const pings = players.map(p => Number(p?.ping) || 0).filter(p => p > 0);
+    if (!pings.length) return null;
+    return Math.round(pings.reduce((sum, ping) => sum + ping, 0) / pings.length);
+  };
 
   const playerCounts = {
     NA1: Array.isArray(playersNA1) ? playersNA1.length : 0,
     NA2: Array.isArray(playersNA2) ? playersNA2.length : 0,
     EU1: Array.isArray(playersEU1) ? playersEU1.length : 0,
+  };
+
+  const topPlayersFrom = players => {
+    if (!Array.isArray(players) || !players.length) return [];
+    return players
+      .map(p => p?.Username?.Username || p?.Username?.username || p?.name || p?.Name || p?.nameTag)
+      .filter(Boolean)
+      .slice(0, 3);
   };
 
 
@@ -816,6 +883,9 @@ async function _fetchEmbedStatusImpl(env) {
       players:    playerCounts[id],
       maxPlayers,
       label:      SERVER_META[id].label,
+      location:   SERVER_META[id].location,
+      avgPing:    id === 'NA1' ? avgPingFromFivem(fivemNA1) : id === 'NA2' ? avgPingFromFivem(fivemNA2) : avgPingFromFivem(fivemEU1),
+      topPlayers: id === 'NA1' ? topPlayersFrom(playersNA1) : id === 'NA2' ? topPlayersFrom(playersNA2) : topPlayersFrom(playersEU1),
     };
   }
 
@@ -858,9 +928,13 @@ async function handleEmbed(serverId, request, env) {
       .map(([id, sv]) => `${id}: ${sv.online ? `${sv.players}/${sv.maxPlayers}` : 'offline'}`)
       .join('  ·  ');
 
+    const topPlayers = s.topPlayers && s.topPlayers.length
+      ? `\n\n**Top players:**\n${s.topPlayers.map(name => `- ${name}`).join('\n')}`
+      : '';
+
     description = s.online
-      ? `${s.players} / ${s.maxPlayers} players currently online\n${others}`
-      : `${serverId} is currently ${state.toLowerCase()}\n${others}`;
+      ? `**${serverId}** · ${s.players}/${s.maxPlayers} online${topPlayers}\n\n${others}`
+      : `**${serverId}** is currently **${state.toLowerCase()}**${topPlayers}\n\n${others}`;
   } else {
     // Overview embed — all servers
     const anyOnline    = Object.values(status).some(s => s.online);
@@ -870,7 +944,7 @@ async function handleEmbed(serverId, request, env) {
     description = Object.entries(status)
       .map(([id, s]) => {
         const emoji = s.restarting ? '🟠' : s.online ? '🟢' : '🔴';
-        return `${emoji} ${id}: ${s.online ? `${s.players}/${s.maxPlayers} players` : 'offline'}`;
+        return `${emoji} **${id}**: ${s.online ? `${s.players}/${s.maxPlayers} players` : '**offline**'}`;
       }).join('\n') + `\n\nTotal: ${totalPlayers} players online`;
   }
 
@@ -964,9 +1038,10 @@ async function handleEmbedSvg(serverId, env, request) {
   // CF edge caching (s-maxage) handles repeated requests at the CDN layer.
 
   const status = await fetchEmbedStatus(env);
+  const baseUrl = new URL(request.url).origin;
   const svg    = serverId && status[serverId]
-    ? buildSingleSvg(serverId, status[serverId])
-    : buildOverviewSvg(status);
+    ? buildSingleSvg(serverId, status[serverId], baseUrl)
+    : buildOverviewSvg(status, baseUrl);
 
   return new Response(svg, {
     headers: {
@@ -980,15 +1055,21 @@ async function handleEmbedSvg(serverId, env, request) {
 // =============================================================================
 // SVG card — single server (1200×630)
 // =============================================================================
-function buildSingleSvg(id, s) {
+function buildSingleSvg(id, s, baseUrl) {
   const W = 1200, H = 630;
   const dotCol    = s.restarting ? COLOR_RESTART : s.online ? COLOR_ONLINE : '#52525b';
   const stateText = s.restarting ? 'RESTARTING'  : s.online ? 'ONLINE'     : 'OFFLINE';
   const pct       = s.online ? Math.min(s.players / s.maxPlayers, 1) : 0;
   const barFill   = (680 * pct).toFixed(1);
+  const utcStamp  = formatUtcStamp();
+  const avgPing   = s.avgPing != null ? `${s.avgPing} ms` : 'n/a';
+  const fontCss   = getSvgFontFaceCss(baseUrl);
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
   <defs>
+    <style><![CDATA[
+${fontCss}
+    ]]></style>
     <pattern id="g" width="32" height="32" patternUnits="userSpaceOnUse">
       <path d="M32 0L0 0 0 32" fill="none" stroke="rgba(255,255,255,0.018)" stroke-width="0.5"/>
     </pattern>
@@ -1008,7 +1089,7 @@ function buildSingleSvg(id, s) {
   ${s.online ? `<circle cx="108" cy="108" r="21" fill="none" stroke="${dotCol}" stroke-width="1.5" opacity="0.3"/>` : ''}
 
   <!-- Server ID -->
-  <text x="142" y="125" font-family="Impact,Arial Black,sans-serif"
+  <text x="142" y="125" font-family="${SVG_FONTS.display}"
         font-size="76" font-weight="900" letter-spacing="4" fill="${COLOR_TEXT}">${id}</text>
 
   <!-- Status pill -->
@@ -1016,51 +1097,61 @@ function buildSingleSvg(id, s) {
         fill="${dotCol}" opacity="0.12"/>
   <rect x="144" y="148" width="${stateText.length * 11 + 26}" height="30" rx="5"
         fill="none" stroke="${dotCol}" stroke-width="0.8"/>
-  <text x="157" y="168" font-family="monospace" font-size="12" font-weight="700"
+  <text x="157" y="168" font-family="${SVG_FONTS.mono}" font-size="12" font-weight="700"
         letter-spacing="3" fill="${dotCol}">${stateText}</text>
 
   <!-- Region label -->
-  <text x="145" y="222" font-family="monospace" font-size="14" letter-spacing="2"
+    <text x="145" y="222" font-family="${SVG_FONTS.mono}" font-size="14" letter-spacing="2"
         fill="${COLOR_MUTED}">${s.label.toUpperCase()}</text>
 
+    <!-- Location -->
+    <text x="145" y="244" font-family="${SVG_FONTS.mono}" font-size="12" letter-spacing="2"
+      fill="${COLOR_MUTED}">LOCATION · ${s.location}</text>
+
+    <!-- Snapshot time + server ping -->
+    <rect x="145" y="252" width="420" height="32" rx="6" fill="${COLOR_SURFACE}" stroke="${COLOR_BORDER}" stroke-width="0.5"/>
+    <text x="160" y="273" font-family="${SVG_FONTS.mono}" font-size="12" font-weight="700" letter-spacing="2"
+      fill="${COLOR_MUTED}">UTC SNAPSHOT · ${utcStamp} · AVG PING ${avgPing}</text>
+
   <!-- Hero player number -->
-  <text x="76" y="400" font-family="Impact,Arial Black,sans-serif"
+    <text x="76" y="400" font-family="${SVG_FONTS.display}"
         font-size="210" font-weight="900" fill="${COLOR_TEXT}">${s.players}</text>
 
   <!-- /max suffix -->
-  <text x="76" y="448" font-family="monospace" font-size="26" fill="${COLOR_MUTED}">/ ${s.maxPlayers} max players</text>
+    <text x="76" y="448" font-family="${SVG_FONTS.mono}" font-size="26" fill="${COLOR_MUTED}">/ ${s.maxPlayers} max players</text>
 
   <!-- Progress bar track -->
   <rect x="76" y="474" width="680" height="9" rx="4.5" fill="${COLOR_BORDER}"/>
   ${+barFill > 0 ? `<rect x="76" y="474" width="${barFill}" height="9" rx="4.5" fill="${dotCol}"/>` : ''}
   <!-- Pct label next to bar -->
   ${s.online ? `<text x="${76 + +barFill + 14}" y="482"
-        font-family="monospace" font-size="13" fill="${COLOR_MUTED}"
+      font-family="${SVG_FONTS.mono}" font-size="13" fill="${COLOR_MUTED}"
         dominant-baseline="middle">${Math.round(pct * 100)}%</text>` : ''}
 
   <!-- Watermark logo (top-right) -->
-  <text x="${W - 72}" y="108" text-anchor="end" font-family="Impact,Arial Black,sans-serif"
+    <text x="${W - 72}" y="108" text-anchor="end" font-family="${SVG_FONTS.display}"
         font-size="28" font-weight="900" letter-spacing="2"
         fill="${COLOR_TEXT}" opacity="0.3">CNR<tspan fill="${COLOR_ACCENT}">TRACKER</tspan></text>
-  <text x="${W - 72}" y="132" text-anchor="end" font-family="monospace"
+    <text x="${W - 72}" y="132" text-anchor="end" font-family="${SVG_FONTS.mono}"
         font-size="11" letter-spacing="2" fill="${COLOR_MUTED}" opacity="0.5">ysb.one/utils/cnr</text>
 
   <!-- Footer -->
-  <text x="76" y="${H - 28}" font-family="monospace" font-size="11" letter-spacing="2"
+    <text x="76" y="${H - 28}" font-family="${SVG_FONTS.mono}" font-size="11" letter-spacing="2"
         fill="${COLOR_MUTED}">LIVE · GTA CRIME AND ROBBERY</text>
-  <text x="${W - 72}" y="${H - 28}" text-anchor="end" font-family="monospace"
-        font-size="11" letter-spacing="2" fill="${COLOR_MUTED}">gtacnr.net · fivem.net</text>
+    <text x="${W - 72}" y="${H - 28}" text-anchor="end" font-family="${SVG_FONTS.mono}"
+      font-size="11" letter-spacing="2" fill="${COLOR_MUTED}">gtacnr.net · fivem.net</text>
 </svg>`;
 }
 
 // =============================================================================
 // SVG card — all servers overview (1200×630)
 // =============================================================================
-function buildOverviewSvg(status) {
+function buildOverviewSvg(status, baseUrl) {
   const W = 1200, H = 630;
   const anyOnline    = Object.values(status).some(s => s.online);
   const totalPlayers = Object.values(status).reduce((n, s) => n + s.players, 0);
   const accentColor  = anyOnline ? COLOR_ONLINE : COLOR_OFFLINE;
+  const fontCss      = getSvgFontFaceCss(baseUrl);
 
   // Three server cards: x positions 72, 432, 792  (width 300 each)
   const cards = Object.entries(status).map(([id, s], i) => {
@@ -1069,52 +1160,61 @@ function buildOverviewSvg(status) {
     const pct    = s.online ? Math.min(s.players / s.maxPlayers, 1) : 0;
     const barW   = (264 * pct).toFixed(1);
     const state  = s.restarting ? 'RESTARTING' : s.online ? 'ONLINE' : 'OFFLINE';
+    const topLabel = s.online ? `${s.players}/${s.maxPlayers}` : 'offline';
 
     return `
     <!-- ── ${id} card ── -->
-    <rect x="${cx}" y="206" width="332" height="352" rx="10"
+    <rect x="${cx}" y="214" width="332" height="334" rx="10"
           fill="${COLOR_SURFACE}" stroke="${COLOR_BORDER}" stroke-width="0.5"/>
     <!-- Top accent on card -->
-    <rect x="${cx}" y="206" width="332" height="4" rx="2" fill="${dotCol}"/>
+    <rect x="${cx}" y="214" width="332" height="4" rx="2" fill="${dotCol}"/>
 
     <!-- Status dot + Server ID -->
-    <circle cx="${cx + 26}" cy="${206 + 44}" r="6" fill="${dotCol}"/>
-    <text x="${cx + 42}" y="${206 + 50}"
-          font-family="Impact,Arial Black,sans-serif" font-size="22" font-weight="900"
-          letter-spacing="2" fill="${COLOR_TEXT}">${id}</text>
+    <circle cx="${cx + 26}" cy="${214 + 40}" r="6" fill="${dotCol}"/>
+    <text x="${cx + 42}" y="${214 + 46}"
+      font-family="${SVG_FONTS.display}" font-size="22" font-weight="900"
+      letter-spacing="2" fill="${COLOR_TEXT}">${id}</text>
 
     <!-- State label -->
-    <text x="${cx + 26}" y="${206 + 80}"
-          font-family="monospace" font-size="10" letter-spacing="3"
+    <text x="${cx + 26}" y="${214 + 74}"
+      font-family="${SVG_FONTS.mono}" font-size="10" letter-spacing="3"
           fill="${dotCol}">${state}</text>
 
     <!-- Region -->
-    <text x="${cx + 26}" y="${206 + 108}"
-          font-family="monospace" font-size="10" letter-spacing="1"
+    <text x="${cx + 26}" y="${214 + 100}"
+      font-family="${SVG_FONTS.mono}" font-size="10" letter-spacing="1"
           fill="${COLOR_MUTED}">${s.label.toUpperCase()}</text>
 
+    <!-- Location -->
+    <text x="${cx + 26}" y="${214 + 118}"
+      font-family="${SVG_FONTS.mono}" font-size="10" letter-spacing="1"
+      fill="${COLOR_MUTED}">${s.location}</text>
+
     <!-- Player count -->
-    <text x="${cx + 26}" y="${206 + 200}"
-          font-family="Impact,Arial Black,sans-serif" font-size="96" font-weight="900"
+    <text x="${cx + 26}" y="${214 + 198}"
+      font-family="${SVG_FONTS.display}" font-size="92" font-weight="900"
           fill="${COLOR_TEXT}">${s.players}</text>
-    <text x="${cx + 26}" y="${206 + 232}"
-          font-family="monospace" font-size="14" fill="${COLOR_MUTED}">/ ${s.maxPlayers} players</text>
+    <text x="${cx + 26}" y="${214 + 228}"
+      font-family="${SVG_FONTS.mono}" font-size="14" fill="${COLOR_MUTED}">${topLabel}</text>
 
     <!-- Progress bar -->
-    <rect x="${cx + 26}" y="${206 + 260}" width="264" height="7" rx="3.5"
+    <rect x="${cx + 26}" y="${214 + 254}" width="264" height="7" rx="3.5"
           fill="${COLOR_BORDER}"/>
-    ${+barW > 0 ? `<rect x="${cx + 26}" y="${206 + 260}" width="${barW}" height="7" rx="3.5"
+    ${+barW > 0 ? `<rect x="${cx + 26}" y="${214 + 254}" width="${barW}" height="7" rx="3.5"
           fill="${dotCol}"/>` : ''}
 
     <!-- Fill % -->
-    ${s.online ? `<text x="${cx + 26}" y="${206 + 294}"
-          font-family="monospace" font-size="11" fill="${COLOR_MUTED}"
+    ${s.online ? `<text x="${cx + 26}" y="${214 + 286}"
+      font-family="${SVG_FONTS.mono}" font-size="11" fill="${COLOR_MUTED}"
           >${Math.round(pct * 100)}% full</text>` : ''}
     `;
   }).join('');
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
   <defs>
+    <style><![CDATA[
+${fontCss}
+    ]]></style>
     <pattern id="g" width="32" height="32" patternUnits="userSpaceOnUse">
       <path d="M32 0L0 0 0 32" fill="none" stroke="rgba(255,255,255,0.018)" stroke-width="0.5"/>
     </pattern>
@@ -1124,27 +1224,19 @@ function buildOverviewSvg(status) {
   <rect width="${W}" height="${H}" fill="url(#g)"/>
   <rect x="0" y="0" width="${W}" height="4" fill="${accentColor}"/>
 
-  <!-- Logo -->
-  <text x="72" y="120" font-family="Impact,Arial Black,sans-serif"
-        font-size="68" font-weight="900" letter-spacing="2"
-        fill="${COLOR_TEXT}">CNR<tspan fill="${COLOR_ACCENT}">TRACKER</tspan></text>
-  <text x="76" y="150" font-family="monospace" font-size="12" letter-spacing="3"
-        fill="${COLOR_MUTED}">ysb.one/utils/cnr · LIVE</text>
-
-  <!-- Total badge (top-right) -->
-  <rect x="${W - 292}" y="80" width="220" height="58" rx="8"
-        fill="${COLOR_SURFACE}" stroke="${COLOR_BORDER}" stroke-width="0.5"/>
-  <text x="${W - 292 + 18}" y="104" font-family="monospace"
-        font-size="10" letter-spacing="3" fill="${COLOR_MUTED}">TOTAL ONLINE</text>
-  <text x="${W - 292 + 18}" y="130" font-family="Impact,Arial Black,sans-serif"
-        font-size="30" font-weight="900" fill="${COLOR_TEXT}">${totalPlayers} players</text>
+    <!-- Header -->
+    <text x="72" y="112" font-family="${SVG_FONTS.display}"
+      font-size="62" font-weight="900" letter-spacing="2"
+      fill="${COLOR_TEXT}">CNR<tspan fill="${COLOR_ACCENT}">TRACKER</tspan></text>
+    <text x="76" y="140" font-family="${SVG_FONTS.mono}" font-size="12" letter-spacing="3"
+      fill="${COLOR_MUTED}">LIVE OVERVIEW · PLAYERS GLOBALLY · ${totalPlayers} PLAYERS</text>
 
   ${cards}
 
   <!-- Footer -->
-  <text x="72" y="${H - 24}" font-family="monospace" font-size="11" letter-spacing="2"
+    <text x="72" y="${H - 24}" font-family="${SVG_FONTS.mono}" font-size="11" letter-spacing="2"
         fill="${COLOR_MUTED}">GTA CRIME AND ROBBERY</text>
-  <text x="${W - 72}" y="${H - 24}" text-anchor="end" font-family="monospace"
+    <text x="${W - 72}" y="${H - 24}" text-anchor="end" font-family="${SVG_FONTS.mono}"
         font-size="11" letter-spacing="2" fill="${COLOR_MUTED}">gtacnr.net · fivem.net</text>
 </svg>`;
 }
@@ -1220,13 +1312,41 @@ async function handleRequest(request, env) {
     });
   }
   if (url.pathname === '/fonts/fonts.css') {
-    return new Response('/* fonts.css intentionally empty: fallbacks live in cnr.html */\n', {
+    return new Response(`
+@font-face {
+  font-family: 'Bebas Neue';
+  src: url('/fonts/BebasNeue.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'IBM Plex Sans';
+  src: url('/fonts/IBMPlexSans.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'JetBrains Mono';
+  src: url('/fonts/JetBrainsMono.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+}
+`.trimStart(), {
       headers: {
         'Content-Type':  'text/css; charset=utf-8',
         'Cache-Control': 'public, max-age=86400',
       },
     });
   }
+
+  if (url.pathname === '/fonts/BebasNeue.woff2') return fontResponse(bebasNeueFont);
+  if (url.pathname === '/fonts/IBMPlexSans.woff2') return fontResponse(ibmPlexSansFont);
+  if (url.pathname === '/fonts/JetBrainsMono.woff2') return fontResponse(jetBrainsMonoFont);
 
   // ── Pretty server URLs: /na1  /na2  /eu1 ────────────────────────────────
   // Bots (Discord, etc.) get the embed HTML with OG tags.

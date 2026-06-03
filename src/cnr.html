@@ -1857,6 +1857,7 @@ function renderServerPills() {
 function renderServerStatsSkeleton() {
   return `
     <div class="stat-card"><div class="stat-label">Players</div><div class="skel skel-stat"></div></div>
+    <div class="stat-card"><div class="stat-label">Queue</div><div class="skel skel-stat"></div></div>
     <div class="stat-card"><div class="stat-label">Your ping</div><div class="skel skel-stat"></div></div>
   `;
 }
@@ -2043,6 +2044,7 @@ async function loadEnrichmentData(server) {
     if (state.selectedServer === server && state.players[server]) {
       const wrap = $('#player-list-wrap');
       if (wrap) wrap.innerHTML = renderPlayerList();
+      updateServerStats();
     }
   } catch (e) {}
 }
@@ -2220,12 +2222,15 @@ async function loadServerData() {
           return date;
         };
 
-        const timeStringToSecondsRemaining = (ts) => {
+        const timeStringToSecondsRemaining = timeString => {
           const regex = /^(.+) (\d{2}):(\d{2})$/;
-          const days = ['Sat', 'Fri', 'Thu', 'Wed', 'Tue', 'Mon', 'Sun'];
-          const match = ts.match(regex);
-          if (!match) throw new Error('invalid timeString');
-          return days.indexOf(match[1]) * 24 * 60 + (24 - parseInt(match[2]) - 1) * 60 + (60 - parseInt(match[3]));
+          const days = ['Saturday', 'Friday', 'Thursday', 'Wednesday', 'Tuesday', 'Monday', 'Sunday'];
+          let match = timeString.match(regex);
+          if (!match) throw new Error("timeString is invalid");
+          const day = match[1];
+          const hour = parseInt(match[2]);
+          const minute = parseInt(match[3]);
+          return days.indexOf(day) * 24 * 60 + (24 - hour - 1) * 60 + (60 - minute);
         };
 
         const fetchTime = Date.now();
@@ -3037,19 +3042,22 @@ function processFivemData(targetServer, data) {
     try {
       const timeStringToDate = (ts) => {
         const regex = /^(.+) (\d{2}):(\d{2})$/;
-        const days  = ['Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun', 'Mon'];
+        const days  = ['Saturday', 'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
         const match = ts.match(regex);
         if (!match) throw new Error('invalid timeString');
         const date = new Date(2025, 0, days.indexOf(match[1]));
         date.setHours(parseInt(match[2]), parseInt(match[3]), 0, 0);
         return date;
       };
-      const timeStringToSecondsRemaining = (ts) => {
+      const timeStringToSecondsRemaining = timeString => {
         const regex = /^(.+) (\d{2}):(\d{2})$/;
-        const days  = ['Sat', 'Fri', 'Thu', 'Wed', 'Tue', 'Mon', 'Sun'];
-        const match = ts.match(regex);
-        if (!match) throw new Error('invalid timeString');
-        return days.indexOf(match[1]) * 24 * 60 + (24 - parseInt(match[2]) - 1) * 60 + (60 - parseInt(match[3]));
+        const days = ['Saturday', 'Friday', 'Thursday', 'Wednesday', 'Tuesday', 'Monday', 'Sunday'];
+        let match = timeString.match(regex);
+        if (!match) throw new Error("timeString is invalid");
+        const day = match[1];
+        const hour = parseInt(match[2]);
+        const minute = parseInt(match[3]);
+        return days.indexOf(day) * 24 * 60 + (24 - hour - 1) * 60 + (60 - minute);
       };
       const fetchTime     = Date.now();
       const lastIngameDate = timeStringToDate(timeStr);
@@ -3057,7 +3065,7 @@ function processFivemData(targetServer, data) {
         const elapsed = Date.now() - fetchTime;
         const ingameMs = (elapsed + 4000) * 60;
         const current  = new Date(lastIngameDate.getTime() + ingameMs);
-        const days     = ['Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun', 'Mon'];
+        const days     = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
         return `${days[current.getDay()]} ${String(current.getHours()).padStart(2,'0')}:${String(current.getMinutes()).padStart(2,'0')}`;
       };
       state.restartTimers[targetServer]        = timeStringToSecondsRemaining(getCurrentIngameTime());
