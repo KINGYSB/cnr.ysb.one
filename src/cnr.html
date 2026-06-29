@@ -1893,13 +1893,25 @@ function renderServerPills() {
   });
   
   // Auto-select server with most players on first load
-  if (!window._serverAutoSelected && ids.length > 0) {
+  if (!window._serverAutoSelected && ids.length > 0 && state.route.view === 'server' && state.route.server === 'NA1') {
     const topServer = ids[0];
     const live = state.servers.find(x => x.Id === topServer);
     const lastHb = live ? (Date.now() - new Date(live.LastHeartbeatDateTime).getTime()) / 1000 : 999;
-    if (live && lastHb < 30 && live.Players > 0) {
-      state.selectedServer = topServer;
+    if (live && lastHb < 30 && live.Players > 0 && topServer !== 'NA1') {
       window._serverAutoSelected = true;
+      navigate('/' + topServer.toLowerCase());
+      return ids.map(id => {
+        const s = CONFIG.SERVERS[id];
+        const sel = id === topServer ? 'selected' : '';
+        const lv = state.servers.find(x => x.Id === id);
+        const onln = lv && (Date.now() - new Date(lv.LastHeartbeatDateTime).getTime()) / 1000 < 30;
+        const restart = onln && lv.Players === 0;
+        const dot = !onln ? 'off' : (restart ? 'restart' : 'on');
+        const cnt = !onln ? 'offline' : (restart ? 'restarting' : `${Math.min(lv.Players, lv.MaxPlayers)}/${lv.MaxPlayers}`);
+        return `<button class="pill ${sel}" data-server="${id}">
+          <span class="pill-dot ${dot}"></span>${escapeHtml(s.display)}<span class="pill-count">${cnt}</span>
+        </button>`;
+      }).join('');
     }
   }
   return ids.map(id => {
