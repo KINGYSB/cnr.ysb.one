@@ -2095,9 +2095,19 @@ function renderPlayerList() {
   if (players.length === 0) {
     return `<div class="empty-state"><h3>NO ONE ONLINE</h3><p>The server is empty right now.</p></div>`;
   }
+  
+  // Helper to get player name - handles both old nested and new flat format
+  const getPlayerName = (p) => {
+    if (typeof p?.Username === 'string') return p.Username;
+    if (p?.Username?.Username) return p.Username.Username;
+    if (p?.Username?.username) return p.Username.username;
+    if (p?.name) return p.name;
+    return 'Unknown';
+  };
+  
   const filter = state.playerListFilter.toLowerCase();
   const filtered = filter
-    ? players.filter(p => p.Username.Username.toLowerCase().includes(filter))
+    ? players.filter(p => getPlayerName(p).toLowerCase().includes(filter))
     : players;
   const pings = state.playerPings[state.selectedServer] || {};
 
@@ -2115,7 +2125,7 @@ function renderPlayerList() {
     </div>
     <div id="player-rows">
       ${filtered.map((p, i) => {
-        const name = p.Username.Username;
+        const name = getPlayerName(p);
         const ping = pings[name.toLowerCase()] != null ? `${pings[name.toLowerCase()]}ms` : '-';
         const badges = getPlayerBadges(name);
         const badgesHtml = badges.map(b =>
