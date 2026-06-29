@@ -550,8 +550,157 @@ input { font: inherit; }
 .badge-cop { background: var(--badge-cop-bg); color: var(--badge-cop-fg); }
 .badge-arrest { background: var(--badge-arrest-bg); color: var(--badge-arrest-fg); }
 .badge-number { background: var(--badge-number-bg); color: var(--badge-number-fg); }
+.badge-crew {
+  background: var(--accent-dim);
+  color: var(--accent);
+  border: 0.5px solid var(--accent-border);
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  transition: all 0.2s ease;
+}
+.badge-crew:hover {
+  background: var(--accent-border);
+  color: var(--text);
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.2);
+}
 
-/* ---------- Player list search ---------- */
+/* ---------- Battle Modal ---------- */
+.battle-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.battle-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  cursor: pointer;
+}
+.battle-modal-content {
+  position: relative;
+  z-index: 1001;
+  background: var(--surface);
+  border: 0.5px solid var(--border);
+  border-radius: var(--radius-lg);
+  max-width: 900px;
+  width: 90%;
+  max-height: 80vh;
+  overflow-y: auto;
+  padding: 24px;
+}
+.battle-modal-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 28px;
+  cursor: pointer;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s;
+}
+.battle-modal-close:hover {
+  color: var(--text);
+}
+
+.battle-header {
+  text-align: center;
+  margin-bottom: 24px;
+}
+.battle-header h2 {
+  font-family: var(--font-display);
+  font-size: 28px;
+  margin: 0 0 8px;
+  color: var(--accent);
+  letter-spacing: 2px;
+}
+.battle-header p {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.battle-arena {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+.battle-player {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.battle-player-card {
+  background: var(--surface-2);
+  border: 0.5px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+}
+.battle-player-name {
+  font-family: var(--font-display);
+  font-size: 18px;
+  color: var(--text);
+  margin: 0 0 12px;
+  word-break: break-word;
+}
+.battle-stat-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  padding: 6px 0;
+  border-bottom: 0.5px solid var(--border);
+}
+.battle-stat-row:last-child {
+  border-bottom: none;
+}
+.battle-stat-label {
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+.battle-stat-value {
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-weight: 700;
+}
+
+.battle-result {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 20px;
+  background: var(--surface-2);
+  border: 1px solid var(--accent-border);
+  border-radius: var(--radius);
+  margin-top: 20px;
+}
+.battle-probability {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  margin-top: 12px;
+}
+.battle-prob-badge {
+  padding: 8px 14px;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 13px;
+}
+.battle-prob-badge.winner {
+  background: var(--accent-dim);
+  color: var(--accent);
+  border: 1px solid var(--accent-border);
+}
+
+/* ---------- Player search bar ---------- */
 .player-search-bar {
   display: flex;
   align-items: center;
@@ -1222,6 +1371,23 @@ body.is-loading .app textarea {
       <a href="https://policies.fivem.net/privacy/" target="_blank" rel="noopener">fivem privacy</a>
     </div>
   </footer>
+  
+  <!-- Battle Modal -->
+  <div id="battle-modal" class="battle-modal" style="display:none;">
+    <div class="battle-modal-backdrop" id="battle-backdrop"></div>
+    <div class="battle-modal-content">
+      <button class="battle-modal-close" id="battle-close" title="Close">&times;</button>
+      
+      <div class="battle-header">
+        <h2>⚔️ PLAYER BATTLE</h2>
+        <p>Win probability based on leaderboard stats</p>
+      </div>
+      
+      <div class="battle-arena" id="battle-arena">
+        <!-- Populated by renderBattle() -->
+      </div>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -1389,8 +1555,203 @@ CONFIG.LEADERBOARDS.forEach(cat => {
 });
 
 // =============================================================================
-// STATE
+// CREW MAPPING
 // =============================================================================
+const CREW_MAP = {
+  '0d10759b-89e9-4925-aa7c-a15aabf54f5a': '2WTC',
+  '34682bca-2e7f-432f-aa1e-3d4c3c593fd8': 'AOD',
+  '2bb8d565-2740-44ef-b296-97a2fe6b92eb': 'ARAB',
+  'd9132503-cabb-42c5-b628-93c9ea0d5b12': 'B-.-D-.-N',
+  '89d1b347-d24f-4fab-98e8-967da2bd1b23': 'BCŚP',
+  '5fa2a448-5fc2-4933-ac43-7ae427f16523': 'CMS',
+  'fd2cfb61-cf32-46d6-b72c-3bd8a296818f': 'F.Z.M.P',
+  '3065d425-00b4-41b7-861c-d50d2dddd59f': 'FAFO',
+  '66404055-1f30-4201-94cf-589fbe8082c1': 'FDP',
+  'e5c053b7-a5f1-4cf1-be3c-5ef284453b80': 'FOE',
+  '1fb586a8-3356-40ec-a070-5a7679c48486': 'L1NE',
+  '0f4fc698-1734-4155-be38-e5744e85995f': 'LCN',
+  '7c0acc2d-2b30-484a-8b87-ef552f042220': 'LEGION',
+  '4a6ce0b9-51af-46fd-ab49-cec231df4841': 'MAFIA',
+  'bdf22645-99a2-4733-bcb3-9f71c941a8f2': 'NBK',
+  'e4446bdc-1b07-4d7d-9437-7f9d2b8fdb70': 'OTK',
+  '9be3dceb-c3b1-4c2d-859c-4f947522bd67': 'P-B',
+  'aba854e4-dd85-439f-90be-077c80cda83e': 'pV',
+  '5af25511-e2ea-452e-8d88-5942ea0bc6df': 'RIP',
+  '48e7c7d2-2a2d-4e34-95c2-b34b7ec2dfa7': 'SAINTS',
+  '82d547c7-e5c5-4cda-aa11-a4ab0ed2d793': 'SFC',
+  'badde4a6-7ea8-44f2-b7c5-49fb7bc9b776': 'SK',
+  'a3403027-e4bd-4f96-83df-51117679fc80': 'SMA',
+  '5737d192-1804-4b52-b712-e06e12b1ce07': 'SS37',
+  '3de22f14-8d3a-42d5-b6a2-890789f168c8': 'STP',
+  'c1dd3892-c444-43d4-9911-a436cfe5edab': 'SWAT',
+  '94294478-2440-41ca-b6f7-feba147d78cd': 'TLC',
+  '3059fbb5-1fa7-4dad-901d-2f7f216f2c0d': 'TXC',
+  '93c34421-f57a-4284-a6bd-0984ec9b5097': 'YJSWT',
+};
+
+function getCrewTag(crewId) {
+  return CREW_MAP[crewId] || null;
+}
+
+// =============================================================================
+// BATTLE PREDICTION SYSTEM
+// =============================================================================
+
+function calculateBattleScore(playerStats) {
+  let score = 0;
+  let weightTotal = 0;
+  
+  // Net worth: weight 25%
+  if (playerStats.netWorth?.rank) {
+    const nwScore = Math.max(0, 100 - (playerStats.netWorth.rank * 0.5));
+    score += nwScore * 0.25;
+    weightTotal += 0.25;
+  }
+  
+  // Crimes committed: weight 30% (most aggressive stat)
+  if (playerStats.crimes?.rank) {
+    const crimeScore = Math.max(0, 100 - (playerStats.crimes.rank * 0.5));
+    score += crimeScore * 0.30;
+    weightTotal += 0.30;
+  }
+  
+  // Arrests: weight 25%
+  if (playerStats.arrests?.rank) {
+    const arrestScore = Math.max(0, 100 - (playerStats.arrests.rank * 0.5));
+    score += arrestScore * 0.25;
+    weightTotal += 0.25;
+  }
+  
+  // K/D ratio: weight 20% (if available)
+  if (playerStats.kdr) {
+    const kdrScore = Math.min(100, playerStats.kdr * 10);
+    score += kdrScore * 0.20;
+    weightTotal += 0.20;
+  }
+  
+  return weightTotal > 0 ? score / weightTotal : 0;
+}
+
+function calculateWinProbability(player1Stats, player2Stats) {
+  const score1 = calculateBattleScore(player1Stats);
+  const score2 = calculateBattleScore(player2Stats);
+  
+  if (score1 + score2 === 0) return { p1: 50, p2: 50 };
+  
+  const p1Probability = (score1 / (score1 + score2)) * 100;
+  const p2Probability = 100 - p1Probability;
+  
+  return {
+    p1: Math.round(p1Probability),
+    p2: Math.round(p2Probability),
+    score1: Math.round(score1 * 10) / 10,
+    score2: Math.round(score2 * 10) / 10
+  };
+}
+
+function getPlayerStatsFromLeaderboards(playerName, region = 'NA') {
+  const normalized = playerName.toLowerCase();
+  const stats = {};
+  
+  const findInLeaderboard = (stat) => {
+    const key = `${region}:${stat}:1`;
+    const data = state.leaderboards[key];
+    if (!data?.records) return null;
+    const idx = data.records.findIndex(r => r.accountName.toLowerCase() === normalized);
+    if (idx < 0) return null;
+    return { rank: idx + 1, value: data.records[idx].value };
+  };
+  
+  stats.netWorth = findInLeaderboard('net_worth');
+  stats.crimes = findInLeaderboard('crimes_committed');
+  stats.arrests = findInLeaderboard('arrests');
+  
+  return stats;
+}
+
+function renderBattle(player1Name, player2Name) {
+  const region = state.selectedServer === 'EU1' ? 'EU' : 'NA';
+  
+  const p1Stats = getPlayerStatsFromLeaderboards(player1Name, region);
+  const p2Stats = getPlayerStatsFromLeaderboards(player2Name, region);
+  
+  const result = calculateWinProbability(p1Stats, p2Stats);
+  state.battleMode.result = result;
+  
+  const renderPlayerBattle = (name, stats, prob, isWinner) => {
+    return `
+      <div class="battle-player">
+        <div class="battle-player-card">
+          <h3 class="battle-player-name">${escapeHtml(name)}</h3>
+          <div class="battle-stat-row">
+            <span class="battle-stat-label">Net Worth</span>
+            <span class="battle-stat-value">${stats.netWorth ? `#${stats.netWorth.rank}` : 'N/A'}</span>
+          </div>
+          <div class="battle-stat-row">
+            <span class="battle-stat-label">Crimes</span>
+            <span class="battle-stat-value">${stats.crimes ? `#${stats.crimes.rank}` : 'N/A'}</span>
+          </div>
+          <div class="battle-stat-row">
+            <span class="battle-stat-label">Arrests</span>
+            <span class="battle-stat-value">${stats.arrests ? `#${stats.arrests.rank}` : 'N/A'}</span>
+          </div>
+          <div class="battle-stat-row" style="border:none; margin-top:8px; padding-top:8px; border-top:0.5px solid var(--border);">
+            <span class="battle-stat-label">Battle Score</span>
+            <span class="battle-stat-value">${prob.toFixed(1)}/100</span>
+          </div>
+        </div>
+      </div>
+    `;
+  };
+  
+  const arena = document.getElementById('battle-arena');
+  arena.innerHTML = `
+    ${renderPlayerBattle(player1Name, p1Stats, result.score1, result.p1 > result.p2)}
+    ${renderPlayerBattle(player2Name, p2Stats, result.score2, result.p2 > result.p1)}
+    
+    <div class="battle-result">
+      <h3 style="margin: 0 0 12px; color: var(--text);">⚔️ WIN PROBABILITY</h3>
+      <div class="battle-probability">
+        <div class="battle-prob-badge ${result.p1 > result.p2 ? 'winner' : ''}">
+          ${escapeHtml(player1Name)}: ${result.p1}%
+        </div>
+        <div style="color: var(--text-tertiary); font-weight: bold;">VS</div>
+        <div class="battle-prob-badge ${result.p2 > result.p1 ? 'winner' : ''}">
+          ${result.p2}%: ${escapeHtml(player2Name)}
+        </div>
+      </div>
+      <p style="font-size:11px; color:var(--text-secondary); margin:12px 0 0;">Based on ${region} leaderboard rankings</p>
+    </div>
+  `;
+}
+
+function startBattle(playerName) {
+  state.battleMode.active = true;
+  state.battleMode.player1 = playerName;
+  state.battleMode.player2 = null;
+  
+  // Show modal asking for second player
+  const modal = document.getElementById('battle-modal');
+  const arena = document.getElementById('battle-arena');
+  
+  arena.innerHTML = `
+    <div style="grid-column:1/-1; text-align:center; padding:20px;">
+      <p style="color:var(--text-secondary); margin-bottom:12px;">Select opponent for</p>
+      <p style="font-family:var(--font-display); font-size:18px; color:var(--accent); margin:0;">${escapeHtml(playerName)}</p>
+      <p style="font-size:11px; color:var(--text-tertiary); margin-top:12px;">Click player names in the list to begin battle</p>
+    </div>
+  `;
+  
+  modal.style.display = 'flex';
+}
+
+function closeBattle() {
+  document.getElementById('battle-modal').style.display = 'none';
+  state.battleMode.active = false;
+  state.battleMode.player1 = null;
+  state.battleMode.player2 = null;
+  state.battleMode.result = null;
+}
 const state = {
   route: parseRoute(window.location.pathname),
   servers: null,
@@ -1416,7 +1777,15 @@ const state = {
   refreshTimers: { server: null, restart: null, players: null },
   lastDataTimestamp: null,
   lastServerSuccess: null,
-  serversError: null
+  serversError: null,
+  crewStats: {}, // crew aggregated stats (calculated from players)
+  selectedCrew: null, // for crew detail view
+  battleMode: {
+    active: false,
+    player1: null,
+    player2: null,
+    result: null, // { p1, p2, score1, score2 }
+  },
 };
 
 // =============================================================================
@@ -2096,6 +2465,9 @@ function renderPlayerList() {
     return `<div class="empty-state"><h3>NO ONE ONLINE</h3><p>The server is empty right now.</p></div>`;
   }
   
+  // Calculate crew stats for this server
+  calculateCrewStats(state.selectedServer);
+  
   // Helper to get player name - handles both old nested and new flat format
   const getPlayerName = (p) => {
     if (typeof p?.Username === 'string') return p.Username;
@@ -2126,6 +2498,9 @@ function renderPlayerList() {
     <div id="player-rows">
       ${filtered.map((p, i) => {
         const name = getPlayerName(p);
+        const crewId = p?.CrewId;
+        const crewTag = crewId ? getCrewTag(crewId) : null;
+        const crewBadgeHtml = crewTag ? `<span class="badge badge-crew" data-crew-id="${escapeHtml(crewId)}" style="cursor:pointer;">${escapeHtml(crewTag)}</span>` : '';
         const ping = pings[name.toLowerCase()] != null ? `${pings[name.toLowerCase()]}ms` : '-';
         const badges = getPlayerBadges(name);
         const badgesHtml = badges.map(b =>
@@ -2135,7 +2510,7 @@ function renderPlayerList() {
         return `<div class="list-row">
           <span class="rank">${i + 1}</span>
           <span class="player-name-wrap">
-            <span class="player-name"><a data-lookup="${escapeHtml(name)}">${escapeHtml(name)}</a></span>
+            <span class="player-name"><a data-lookup="${escapeHtml(name)}">${escapeHtml(name)}</a>${crewBadgeHtml ? ' ' + crewBadgeHtml : ''}</span>
             ${joinedLabel ? `<span class="player-joined">${escapeHtml(joinedLabel)}</span>` : ''}
           </span>
           <span class="player-badges">${badgesHtml}</span>
@@ -2144,6 +2519,32 @@ function renderPlayerList() {
       }).join('')}
     </div>
   `;
+}
+
+function calculateCrewStats(server) {
+  const players = state.players[server];
+  if (!players || !Array.isArray(players)) return;
+  
+  const stats = {};
+  players.forEach(p => {
+    const crewId = p?.CrewId;
+    if (!crewId) return;
+    
+    if (!stats[crewId]) {
+      stats[crewId] = {
+        crewId,
+        tag: getCrewTag(crewId) || 'Unknown',
+        playerCount: 0,
+        members: []
+      };
+    }
+    
+    const name = typeof p?.Username === 'string' ? p.Username : p?.Username?.Username;
+    stats[crewId].members.push(name);
+    stats[crewId].playerCount++;
+  });
+  
+  state.crewStats[server] = stats;
 }
 
 async function shareCurrentServer() {
@@ -2864,6 +3265,23 @@ document.addEventListener('click', e => {
     const next = current === 'light' ? 'dark' : 'light';
     document.documentElement.dataset.theme = next;
     try { localStorage.setItem('cnr-theme', next); } catch (e) {}
+  }
+  
+  // Battle modal close
+  if (e.target.closest('#battle-close') || e.target.closest('#battle-backdrop')) {
+    closeBattle();
+  }
+  
+  // Player name click - start battle
+  if (e.target.closest('.player-name a')) {
+    e.preventDefault();
+    const playerName = e.target.closest('.player-name a').textContent;
+    if (state.battleMode.active && !state.battleMode.player2) {
+      state.battleMode.player2 = playerName;
+      renderBattle(state.battleMode.player1, state.battleMode.player2);
+    } else if (!state.battleMode.active) {
+      startBattle(playerName);
+    }
   }
 });
 
