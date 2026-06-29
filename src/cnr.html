@@ -1350,6 +1350,76 @@ body.is-loading .app textarea {
   gap: 6px;
 }
 .legend-sep { color: var(--text-faint); }
+
+/* ---------- Crew Leaderboard ---------- */
+.crew-leaderboard {
+  background: var(--surface);
+  border: 0.5px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px;
+  margin-bottom: 16px;
+}
+.crew-lb-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.crew-lb-title {
+  font-family: var(--font-display);
+  font-size: 14px;
+  margin: 0;
+  color: var(--accent);
+  letter-spacing: 0.5px;
+}
+.crew-lb-count {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+.crew-lb-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.crew-lb-row {
+  display: grid;
+  grid-template-columns: 28px 1fr auto;
+  gap: 12px;
+  align-items: center;
+  padding: 8px 10px;
+  background: var(--surface-2);
+  border-radius: 3px;
+  font-size: 12px;
+}
+.crew-rank {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-muted);
+  text-align: right;
+}
+.crew-name {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  color: var(--accent-bright);
+}
+.crew-players {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  justify-content: flex-end;
+}
+.crew-count {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent);
+}
+.crew-label {
+  font-size: 10px;
+  color: var(--text-tertiary);
+  text-transform: lowercase;
+}
 </style>
 </head>
 <body>
@@ -2202,7 +2272,9 @@ function renderServerView() {
         <span class="legend-sep">·</span>
         <span class="legend-item"><span class="badge badge-cop">#3 cop</span> top 25 arrests</span>
       </div>
-      <div id="player-list-wrap">${hasPlayerData ? renderPlayerList() : renderPlayerListSkeleton()}</div>
+      <div id="player-list-wrap">
+        ${hasPlayerData ? renderCrewLeaderboard() + renderPlayerList() : renderPlayerListSkeleton()}
+      </div>
     </div>
   `;
   loadServerData();
@@ -2477,6 +2549,44 @@ function getPlayerBadges(playerName) {
   return badges;
 }
 
+function renderCrewLeaderboard() {
+  const players = state.players[state.selectedServer];
+  if (!players || players.length === 0) return '';
+  
+  // Calculate crew stats from online players
+  calculateCrewStats(state.selectedServer);
+  const crewStats = state.crewStats[state.selectedServer];
+  
+  if (!crewStats || Object.keys(crewStats).length === 0) return '';
+  
+  // Sort crews by player count descending
+  const sortedCrews = Object.values(crewStats).sort((a, b) => b.playerCount - a.playerCount);
+  
+  // Top 5 crews
+  const topCrews = sortedCrews.slice(0, 5);
+  
+  return `
+    <div class="crew-leaderboard">
+      <div class="crew-lb-header">
+        <h3 class="crew-lb-title">⚔️ Top Crews Online</h3>
+        <span class="crew-lb-count">${sortedCrews.length} crews</span>
+      </div>
+      <div class="crew-lb-list">
+        ${topCrews.map((crew, i) => `
+          <div class="crew-lb-row">
+            <span class="crew-rank">#${i + 1}</span>
+            <span class="crew-name">${escapeHtml(crew.tag)}</span>
+            <span class="crew-players">
+              <span class="crew-count">${crew.playerCount}</span>
+              <span class="crew-label">players</span>
+            </span>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+}
+
 function renderPlayerList() {
   const players = state.players[state.selectedServer];
   if (!players) return renderPlayerListSkeleton();
@@ -2541,7 +2651,44 @@ function renderPlayerList() {
   `;
 }
 
-function calculateCrewStats(server) {
+function renderCrewLeaderboard() {
+  const crewStats = state.crewStats[state.selectedServer];
+  if (!crewStats || Object.keys(crewStats).length === 0) {
+    return `<div class="empty-state"><h3>NO CREWS ONLINE</h3><p>No crews have members in this server.</p></div>`;
+  }
+  
+  // Sort crews by player count descending
+  const sorted = Object.values(crewStats)
+    .sort((a, b) => b.playerCount - a.playerCount);
+  
+  return `
+    <div class="crew-leaderboard">
+      <div class="crew-lb-header">
+        <h3 style="margin:0; color:var(--accent);">⚔️ CREW RANKINGS</h3>
+        <p style="margin:8px 0 0; font-size:11px; color:var(--text-secondary);">By online player count on ${state.selectedServer}</p>
+      </div>
+      
+      <div class="crew-lb-list">
+        ${sorted.map((crew, idx) => {
+          const medal = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `#${idx + 1}`;
+          const percentage = Math.round((crew.playerCount / sorted[0].playerCount) * 100);
+          const barWidth = percentage;
+          
+          return `
+            <div class="crew-lb-row">
+              <span class="crew-rank">${medal}</span>
+              <span class="crew-name">${escapeHtml(crew.tag)}</span>
+              <div class="crew-bar-wrap">
+                <div class="crew-bar" style="width:${barWidth}%; background:var(--accent-dim);"></div>
+                <span class="crew-count">${crew.playerCount} players</span>
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    </div>
+  `;
+}
   const players = state.players[server];
   if (!players || !Array.isArray(players)) return;
   
