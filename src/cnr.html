@@ -550,6 +550,19 @@ input { font: inherit; }
 .badge-cop { background: var(--badge-cop-bg); color: var(--badge-cop-fg); }
 .badge-arrest { background: var(--badge-arrest-bg); color: var(--badge-arrest-fg); }
 .badge-number { background: var(--badge-number-bg); color: var(--badge-number-fg); }
+.badge-crew {
+  background: var(--accent-dim);
+  color: var(--accent);
+  border: 0.5px solid var(--accent-border);
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  transition: all 0.2s ease;
+}
+.badge-crew:hover {
+  background: var(--accent-border);
+  color: var(--text);
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.2);
+}
 
 /* ---------- Player list search ---------- */
 .player-search-bar {
@@ -1416,7 +1429,9 @@ const state = {
   refreshTimers: { server: null, restart: null, players: null },
   lastDataTimestamp: null,
   lastServerSuccess: null,
-  serversError: null
+  serversError: null,
+  crewStats: {},
+  selectedCrew: null,
 };
 
 // =============================================================================
@@ -2089,15 +2104,61 @@ function getPlayerBadges(playerName) {
   return badges;
 }
 
+function calculateCrewStats(server) {
+  const players = state.players[server];
+  if (!players || !Array.isArray(players)) return;
+  
+  const stats = {};
+  players.forEach(p => {
+    const crewId = p?.CrewId;
+    if (!crewId) return;
+    
+    if (!stats[crewId]) {
+      stats[crewId] = {
+        crewId,
+        tag: getCrewTag(crewId) || 'Unknown',
+        playerCount: 0,
+        members: []
+      };
+    }
+    
+    // Use helper function to get name
+    const getPlayerName = (player) => {
+      if (typeof player?.Username === 'string') return player.Username;
+      if (player?.Username?.Username) return player.Username.Username;
+      return 'Unknown';
+    };
+    
+    const name = getPlayerName(p);
+    stats[crewId].members.push(name);
+    stats[crewId].playerCount++;
+  });
+  
+  state.crewStats[server] = stats;
+}
+
 function renderPlayerList() {
   const players = state.players[state.selectedServer];
   if (!players) return renderPlayerListSkeleton();
   if (players.length === 0) {
     return `<div class="empty-state"><h3>NO ONE ONLINE</h3><p>The server is empty right now.</p></div>`;
   }
+  
+  // Helper to get player name - handles both old nested and new flat format
+  const getPlayerName = (p) => {
+    if (typeof p?.Username === 'string') return p.Username;
+    if (p?.Username?.Username) return p.Username.Username;
+    if (p?.Username?.username) return p.Username.username;
+    if (p?.name) return p.name;
+    return 'Unknown';
+  };
+  
+  // Calculate crew stats
+  calculateCrewStats(state.selectedServer);
+  
   const filter = state.playerListFilter.toLowerCase();
   const filtered = filter
-    ? players.filter(p => p.Username.Username.toLowerCase().includes(filter))
+    ? players.filter(p => getPlayerName(p).toLowerCase().includes(filter))
     : players;
   const pings = state.playerPings[state.selectedServer] || {};
 
@@ -2115,7 +2176,10 @@ function renderPlayerList() {
     </div>
     <div id="player-rows">
       ${filtered.map((p, i) => {
-        const name = p.Username.Username;
+        const name = getPlayerName(p);
+        const crewId = p?.CrewId;
+        const crewTag = crewId ? getCrewTag(crewId) : null;
+        const crewBadgeHtml = crewTag ? `<span class="badge badge-crew" style="cursor:pointer;">${escapeHtml(crewTag)}</span>` : '';
         const ping = pings[name.toLowerCase()] != null ? `${pings[name.toLowerCase()]}ms` : '-';
         const badges = getPlayerBadges(name);
         const badgesHtml = badges.map(b =>
@@ -2125,7 +2189,7 @@ function renderPlayerList() {
         return `<div class="list-row">
           <span class="rank">${i + 1}</span>
           <span class="player-name-wrap">
-            <span class="player-name"><a data-lookup="${escapeHtml(name)}">${escapeHtml(name)}</a></span>
+            <span class="player-name">${crewBadgeHtml ? crewBadgeHtml + ' ' : ''}<a data-lookup="${escapeHtml(name)}">${escapeHtml(name)}</a></span>
             ${joinedLabel ? `<span class="player-joined">${escapeHtml(joinedLabel)}</span>` : ''}
           </span>
           <span class="player-badges">${badgesHtml}</span>
