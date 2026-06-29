@@ -2510,7 +2510,7 @@ function renderPlayerList() {
         return `<div class="list-row">
           <span class="rank">${i + 1}</span>
           <span class="player-name-wrap">
-            <span class="player-name"><a data-lookup="${escapeHtml(name)}">${escapeHtml(name)}</a>${crewBadgeHtml ? ' ' + crewBadgeHtml : ''}</span>
+            <span class="player-name">${crewBadgeHtml ? crewBadgeHtml + ' ' : ''}<a data-lookup="${escapeHtml(name)}">${escapeHtml(name)}</a></span>
             ${joinedLabel ? `<span class="player-joined">${escapeHtml(joinedLabel)}</span>` : ''}
           </span>
           <span class="player-badges">${badgesHtml}</span>
