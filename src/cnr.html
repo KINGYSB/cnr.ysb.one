@@ -497,7 +497,7 @@ input { font: inherit; }
 }
 .list-row {
   display: grid;
-  grid-template-columns: 32px 1fr auto auto auto;
+  grid-template-columns: 32px 1fr auto auto;
   gap: 12px;
   align-items: center;
   padding: 9px 4px;
@@ -521,8 +521,6 @@ input { font: inherit; }
 }
 .list-row .player-name a { color: inherit; cursor: pointer; }
 .list-row .player-name a:hover { color: var(--accent-bright); }
-
-/* Battle button */
 .player-badges {
   display: flex;
   gap: 4px;
@@ -552,21 +550,8 @@ input { font: inherit; }
 .badge-cop { background: var(--badge-cop-bg); color: var(--badge-cop-fg); }
 .badge-arrest { background: var(--badge-arrest-bg); color: var(--badge-arrest-fg); }
 .badge-number { background: var(--badge-number-bg); color: var(--badge-number-fg); }
-.badge-crew {
-  background: var(--accent-dim);
-  color: var(--accent);
-  border: 0.5px solid var(--accent-border);
-  font-weight: 600;
-  letter-spacing: 0.5px;
-  transition: all 0.2s ease;
-}
-.badge-crew:hover {
-  background: var(--accent-border);
-  color: var(--text);
-  box-shadow: 0 0 8px rgba(245, 158, 11, 0.2);
-}
 
-/* ---------- Player search bar ---------- */
+/* ---------- Player list search ---------- */
 .player-search-bar {
   display: flex;
   align-items: center;
@@ -1197,76 +1182,6 @@ body.is-loading .app textarea {
   gap: 6px;
 }
 .legend-sep { color: var(--text-faint); }
-
-/* ---------- Crew Leaderboard ---------- */
-.crew-leaderboard {
-  background: var(--surface);
-  border: 0.5px solid var(--border);
-  border-radius: var(--radius);
-  padding: 14px;
-  margin-bottom: 16px;
-}
-.crew-lb-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12px;
-}
-.crew-lb-title {
-  font-family: var(--font-display);
-  font-size: 14px;
-  margin: 0;
-  color: var(--accent);
-  letter-spacing: 0.5px;
-}
-.crew-lb-count {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--text-tertiary);
-}
-.crew-lb-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.crew-lb-row {
-  display: grid;
-  grid-template-columns: 28px 1fr auto;
-  gap: 12px;
-  align-items: center;
-  padding: 8px 10px;
-  background: var(--surface-2);
-  border-radius: 3px;
-  font-size: 12px;
-}
-.crew-rank {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  color: var(--text-muted);
-  text-align: right;
-}
-.crew-name {
-  font-family: var(--font-mono);
-  font-weight: 700;
-  color: var(--accent-bright);
-}
-.crew-players {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  justify-content: flex-end;
-}
-.crew-count {
-  font-family: var(--font-mono);
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--accent);
-}
-.crew-label {
-  font-size: 10px;
-  color: var(--text-tertiary);
-  text-transform: lowercase;
-}
 </style>
 </head>
 <body>
@@ -1474,49 +1389,8 @@ CONFIG.LEADERBOARDS.forEach(cat => {
 });
 
 // =============================================================================
-// CREW MAPPING
+// STATE
 // =============================================================================
-const CREW_MAP = {
-  '0d10759b-89e9-4925-aa7c-a15aabf54f5a': '2WTC',
-  '34682bca-2e7f-432f-aa1e-3d4c3c593fd8': 'AOD',
-  '2bb8d565-2740-44ef-b296-97a2fe6b92eb': 'ARAB',
-  'd9132503-cabb-42c5-b628-93c9ea0d5b12': 'B-.-D-.-N',
-  '89d1b347-d24f-4fab-98e8-967da2bd1b23': 'BCŚP',
-  '5fa2a448-5fc2-4933-ac43-7ae427f16523': 'CMS',
-  'fd2cfb61-cf32-46d6-b72c-3bd8a296818f': 'F.Z.M.P',
-  '3065d425-00b4-41b7-861c-d50d2dddd59f': 'FAFO',
-  '66404055-1f30-4201-94cf-589fbe8082c1': 'FDP',
-  'e5c053b7-a5f1-4cf1-be3c-5ef284453b80': 'FOE',
-  '1fb586a8-3356-40ec-a070-5a7679c48486': 'L1NE',
-  '0f4fc698-1734-4155-be38-e5744e85995f': 'LCN',
-  '7c0acc2d-2b30-484a-8b87-ef552f042220': 'LEGION',
-  '4a6ce0b9-51af-46fd-ab49-cec231df4841': 'MAFIA',
-  'bdf22645-99a2-4733-bcb3-9f71c941a8f2': 'NBK',
-  'e4446bdc-1b07-4d7d-9437-7f9d2b8fdb70': 'OTK',
-  '9be3dceb-c3b1-4c2d-859c-4f947522bd67': 'P-B',
-  'aba854e4-dd85-439f-90be-077c80cda83e': 'pV',
-  '5af25511-e2ea-452e-8d88-5942ea0bc6df': 'RIP',
-  '48e7c7d2-2a2d-4e34-95c2-b34b7ec2dfa7': 'SAINTS',
-  '82d547c7-e5c5-4cda-aa11-a4ab0ed2d793': 'SFC',
-  'badde4a6-7ea8-44f2-b7c5-49fb7bc9b776': 'SK',
-  'a3403027-e4bd-4f96-83df-51117679fc80': 'SMA',
-  '5737d192-1804-4b52-b712-e06e12b1ce07': 'SS37',
-  '3de22f14-8d3a-42d5-b6a2-890789f168c8': 'STP',
-  'c1dd3892-c444-43d4-9911-a436cfe5edab': 'SWAT',
-  '94294478-2440-41ca-b6f7-feba147d78cd': 'TLC',
-  '3059fbb5-1fa7-4dad-901d-2f7f216f2c0d': 'TXC',
-  '93c34421-f57a-4284-a6bd-0984ec9b5097': 'YJSWT',
-};
-
-function getCrewTag(crewId) {
-  return CREW_MAP[crewId] || null;
-}
-
-// =============================================================================
-// BATTLE PREDICTION SYSTEM
-// =============================================================================
-
-
 const state = {
   route: parseRoute(window.location.pathname),
   servers: null,
@@ -1542,9 +1416,7 @@ const state = {
   refreshTimers: { server: null, restart: null, players: null },
   lastDataTimestamp: null,
   lastServerSuccess: null,
-  serversError: null,
-  crewStats: {}, // crew aggregated stats (calculated from players)
-  selectedCrew: null, // for crew detail view
+  serversError: null
 };
 
 // =============================================================================
@@ -1942,9 +1814,7 @@ function renderServerView() {
         <span class="legend-sep">·</span>
         <span class="legend-item"><span class="badge badge-cop">#3 cop</span> top 25 arrests</span>
       </div>
-      <div id="player-list-wrap">
-        ${hasPlayerData ? renderCrewLeaderboard() + renderPlayerList() : renderPlayerListSkeleton()}
-      </div>
+      <div id="player-list-wrap">${hasPlayerData ? renderPlayerList() : renderPlayerListSkeleton()}</div>
     </div>
   `;
   loadServerData();
@@ -2219,66 +2089,15 @@ function getPlayerBadges(playerName) {
   return badges;
 }
 
-function renderCrewLeaderboard() {
-  const players = state.players[state.selectedServer];
-  if (!players || players.length === 0) return '';
-  
-  // Calculate crew stats from online players
-  calculateCrewStats(state.selectedServer);
-  const crewStats = state.crewStats[state.selectedServer];
-  
-  if (!crewStats || Object.keys(crewStats).length === 0) return '';
-  
-  // Sort crews by player count descending
-  const sortedCrews = Object.values(crewStats).sort((a, b) => b.playerCount - a.playerCount);
-  
-  // Top 5 crews
-  const topCrews = sortedCrews.slice(0, 5);
-  
-  return `
-    <div class="crew-leaderboard">
-      <div class="crew-lb-header">
-        <h3 class="crew-lb-title">⚔️ Top Crews Online</h3>
-        <span class="crew-lb-count">${sortedCrews.length} crews</span>
-      </div>
-      <div class="crew-lb-list">
-        ${topCrews.map((crew, i) => `
-          <div class="crew-lb-row">
-            <span class="crew-rank">#${i + 1}</span>
-            <span class="crew-name">${escapeHtml(crew.tag)}</span>
-            <span class="crew-players">
-              <span class="crew-count">${crew.playerCount}</span>
-              <span class="crew-label">players</span>
-            </span>
-          </div>
-        `).join('')}
-      </div>
-    </div>
-  `;
-}
-
 function renderPlayerList() {
   const players = state.players[state.selectedServer];
   if (!players) return renderPlayerListSkeleton();
   if (players.length === 0) {
     return `<div class="empty-state"><h3>NO ONE ONLINE</h3><p>The server is empty right now.</p></div>`;
   }
-  
-  // Calculate crew stats for this server
-  calculateCrewStats(state.selectedServer);
-  
-  // Helper to get player name - handles both old nested and new flat format
-  const getPlayerName = (p) => {
-    if (typeof p?.Username === 'string') return p.Username;
-    if (p?.Username?.Username) return p.Username.Username;
-    if (p?.Username?.username) return p.Username.username;
-    if (p?.name) return p.name;
-    return 'Unknown';
-  };
-  
   const filter = state.playerListFilter.toLowerCase();
   const filtered = filter
-    ? players.filter(p => getPlayerName(p).toLowerCase().includes(filter))
+    ? players.filter(p => p.Username.Username.toLowerCase().includes(filter))
     : players;
   const pings = state.playerPings[state.selectedServer] || {};
 
@@ -2296,10 +2115,7 @@ function renderPlayerList() {
     </div>
     <div id="player-rows">
       ${filtered.map((p, i) => {
-        const name = getPlayerName(p);
-        const crewId = p?.CrewId;
-        const crewTag = crewId ? getCrewTag(crewId) : null;
-        const crewBadgeHtml = crewTag ? `<span class="badge badge-crew" data-crew-id="${escapeHtml(crewId)}" style="cursor:pointer;">${escapeHtml(crewTag)}</span>` : '';
+        const name = p.Username.Username;
         const ping = pings[name.toLowerCase()] != null ? `${pings[name.toLowerCase()]}ms` : '-';
         const badges = getPlayerBadges(name);
         const badgesHtml = badges.map(b =>
@@ -2309,7 +2125,7 @@ function renderPlayerList() {
         return `<div class="list-row">
           <span class="rank">${i + 1}</span>
           <span class="player-name-wrap">
-            <span class="player-name">${crewBadgeHtml ? crewBadgeHtml + ' ' : ''}<a data-lookup="${escapeHtml(name)}">${escapeHtml(name)}</a></span>
+            <span class="player-name"><a data-lookup="${escapeHtml(name)}">${escapeHtml(name)}</a></span>
             ${joinedLabel ? `<span class="player-joined">${escapeHtml(joinedLabel)}</span>` : ''}
           </span>
           <span class="player-badges">${badgesHtml}</span>
@@ -2318,69 +2134,6 @@ function renderPlayerList() {
       }).join('')}
     </div>
   `;
-}
-
-function renderCrewLeaderboard() {
-  const crewStats = state.crewStats[state.selectedServer];
-  if (!crewStats || Object.keys(crewStats).length === 0) {
-    return `<div class="empty-state"><h3>NO CREWS ONLINE</h3><p>No crews have members in this server.</p></div>`;
-  }
-  
-  // Sort crews by player count descending
-  const sorted = Object.values(crewStats)
-    .sort((a, b) => b.playerCount - a.playerCount);
-  
-  return `
-    <div class="crew-leaderboard">
-      <div class="crew-lb-header">
-        <h3 style="margin:0; color:var(--accent);">⚔️ CREW RANKINGS</h3>
-        <p style="margin:8px 0 0; font-size:11px; color:var(--text-secondary);">By online player count on ${state.selectedServer}</p>
-      </div>
-      
-      <div class="crew-lb-list">
-        ${sorted.map((crew, idx) => {
-          const medal = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `#${idx + 1}`;
-          const percentage = Math.round((crew.playerCount / sorted[0].playerCount) * 100);
-          const barWidth = percentage;
-          
-          return `
-            <div class="crew-lb-row">
-              <span class="crew-rank">${medal}</span>
-              <span class="crew-name">${escapeHtml(crew.tag)}</span>
-              <div class="crew-bar-wrap">
-                <div class="crew-bar" style="width:${barWidth}%; background:var(--accent-dim);"></div>
-                <span class="crew-count">${crew.playerCount} players</span>
-              </div>
-            </div>
-          `;
-        }).join('')}
-      </div>
-    </div>
-  `;
-}
-  const players = state.players[server];
-  if (!players || !Array.isArray(players)) return;
-  
-  const stats = {};
-  players.forEach(p => {
-    const crewId = p?.CrewId;
-    if (!crewId) return;
-    
-    if (!stats[crewId]) {
-      stats[crewId] = {
-        crewId,
-        tag: getCrewTag(crewId) || 'Unknown',
-        playerCount: 0,
-        members: []
-      };
-    }
-    
-    const name = typeof p?.Username === 'string' ? p.Username : p?.Username?.Username;
-    stats[crewId].members.push(name);
-    stats[crewId].playerCount++;
-  });
-  
-  state.crewStats[server] = stats;
 }
 
 async function shareCurrentServer() {
