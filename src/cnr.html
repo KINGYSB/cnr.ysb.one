@@ -523,23 +523,6 @@ input { font: inherit; }
 .list-row .player-name a:hover { color: var(--accent-bright); }
 
 /* Battle button */
-.battle-btn {
-  background: transparent;
-  border: 0.5px solid var(--accent-border);
-  color: var(--accent);
-  font-family: var(--font-mono);
-  font-size: 10px;
-  padding: 4px 8px;
-  border-radius: 3px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  white-space: nowrap;
-}
-.battle-btn:hover {
-  background: var(--accent-dim);
-  border-color: var(--accent);
-  box-shadow: 0 0 6px rgba(245, 158, 11, 0.2);
-}
 .player-badges {
   display: flex;
   gap: 4px;
@@ -581,142 +564,6 @@ input { font: inherit; }
   background: var(--accent-border);
   color: var(--text);
   box-shadow: 0 0 8px rgba(245, 158, 11, 0.2);
-}
-
-/* ---------- Battle Modal ---------- */
-.battle-modal {
-  position: fixed;
-  inset: 0;
-  z-index: 1000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.battle-modal-backdrop {
-  position: absolute;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.7);
-  cursor: pointer;
-}
-.battle-modal-content {
-  position: relative;
-  z-index: 1001;
-  background: var(--surface);
-  border: 0.5px solid var(--border);
-  border-radius: var(--radius-lg);
-  max-width: 900px;
-  width: 90%;
-  max-height: 80vh;
-  overflow-y: auto;
-  padding: 24px;
-}
-.battle-modal-close {
-  position: absolute;
-  top: 16px;
-  right: 16px;
-  background: transparent;
-  border: none;
-  color: var(--text-secondary);
-  font-size: 28px;
-  cursor: pointer;
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: color 0.2s;
-}
-.battle-modal-close:hover {
-  color: var(--text);
-}
-
-.battle-header {
-  text-align: center;
-  margin-bottom: 24px;
-}
-.battle-header h2 {
-  font-family: var(--font-display);
-  font-size: 28px;
-  margin: 0 0 8px;
-  color: var(--accent);
-  letter-spacing: 2px;
-}
-.battle-header p {
-  font-size: 12px;
-  color: var(--text-secondary);
-  margin: 0;
-}
-
-.battle-arena {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 20px;
-}
-.battle-player {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-.battle-player-card {
-  background: var(--surface-2);
-  border: 0.5px solid var(--border);
-  border-radius: var(--radius);
-  padding: 16px;
-}
-.battle-player-name {
-  font-family: var(--font-display);
-  font-size: 18px;
-  color: var(--text);
-  margin: 0 0 12px;
-  word-break: break-word;
-}
-.battle-stat-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 12px;
-  padding: 6px 0;
-  border-bottom: 0.5px solid var(--border);
-}
-.battle-stat-row:last-child {
-  border-bottom: none;
-}
-.battle-stat-label {
-  color: var(--text-secondary);
-  font-weight: 600;
-}
-.battle-stat-value {
-  color: var(--accent);
-  font-family: var(--font-mono);
-  font-weight: 700;
-}
-
-.battle-result {
-  grid-column: 1 / -1;
-  text-align: center;
-  padding: 20px;
-  background: var(--surface-2);
-  border: 1px solid var(--accent-border);
-  border-radius: var(--radius);
-  margin-top: 20px;
-}
-.battle-probability {
-  display: flex;
-  gap: 12px;
-  justify-content: center;
-  margin-top: 12px;
-}
-.battle-prob-badge {
-  padding: 8px 14px;
-  border-radius: 4px;
-  font-family: var(--font-mono);
-  font-weight: 700;
-  font-size: 13px;
-}
-.battle-prob-badge.winner {
-  background: var(--accent-dim);
-  color: var(--accent);
-  border: 1px solid var(--accent-border);
 }
 
 /* ---------- Player search bar ---------- */
@@ -1460,23 +1307,6 @@ body.is-loading .app textarea {
       <a href="https://policies.fivem.net/privacy/" target="_blank" rel="noopener">fivem privacy</a>
     </div>
   </footer>
-  
-  <!-- Battle Modal -->
-  <div id="battle-modal" class="battle-modal" style="display:none;">
-    <div class="battle-modal-backdrop" id="battle-backdrop"></div>
-    <div class="battle-modal-content">
-      <button class="battle-modal-close" id="battle-close" title="Close">&times;</button>
-      
-      <div class="battle-header">
-        <h2>⚔️ PLAYER BATTLE</h2>
-        <p>Win probability based on leaderboard stats</p>
-      </div>
-      
-      <div class="battle-arena" id="battle-arena">
-        <!-- Populated by renderBattle() -->
-      </div>
-    </div>
-  </div>
 </div>
 
 <script>
@@ -1686,161 +1516,7 @@ function getCrewTag(crewId) {
 // BATTLE PREDICTION SYSTEM
 // =============================================================================
 
-function calculateBattleScore(playerStats) {
-  let score = 0;
-  let weightTotal = 0;
-  
-  // Net worth: weight 25%
-  if (playerStats.netWorth?.rank) {
-    const nwScore = Math.max(0, 100 - (playerStats.netWorth.rank * 0.5));
-    score += nwScore * 0.25;
-    weightTotal += 0.25;
-  }
-  
-  // Crimes committed: weight 30% (most aggressive stat)
-  if (playerStats.crimes?.rank) {
-    const crimeScore = Math.max(0, 100 - (playerStats.crimes.rank * 0.5));
-    score += crimeScore * 0.30;
-    weightTotal += 0.30;
-  }
-  
-  // Arrests: weight 25%
-  if (playerStats.arrests?.rank) {
-    const arrestScore = Math.max(0, 100 - (playerStats.arrests.rank * 0.5));
-    score += arrestScore * 0.25;
-    weightTotal += 0.25;
-  }
-  
-  // K/D ratio: weight 20% (if available)
-  if (playerStats.kdr) {
-    const kdrScore = Math.min(100, playerStats.kdr * 10);
-    score += kdrScore * 0.20;
-    weightTotal += 0.20;
-  }
-  
-  return weightTotal > 0 ? score / weightTotal : 0;
-}
 
-function calculateWinProbability(player1Stats, player2Stats) {
-  const score1 = calculateBattleScore(player1Stats);
-  const score2 = calculateBattleScore(player2Stats);
-  
-  if (score1 + score2 === 0) return { p1: 50, p2: 50 };
-  
-  const p1Probability = (score1 / (score1 + score2)) * 100;
-  const p2Probability = 100 - p1Probability;
-  
-  return {
-    p1: Math.round(p1Probability),
-    p2: Math.round(p2Probability),
-    score1: Math.round(score1 * 10) / 10,
-    score2: Math.round(score2 * 10) / 10
-  };
-}
-
-function getPlayerStatsFromLeaderboards(playerName, region = 'NA') {
-  const normalized = playerName.toLowerCase();
-  const stats = {};
-  
-  const findInLeaderboard = (stat) => {
-    const key = `${region}:${stat}:1`;
-    const data = state.leaderboards[key];
-    if (!data?.records) return null;
-    const idx = data.records.findIndex(r => r.accountName.toLowerCase() === normalized);
-    if (idx < 0) return null;
-    return { rank: idx + 1, value: data.records[idx].value };
-  };
-  
-  stats.netWorth = findInLeaderboard('net_worth');
-  stats.crimes = findInLeaderboard('crimes_committed');
-  stats.arrests = findInLeaderboard('arrests');
-  
-  return stats;
-}
-
-function renderBattle(player1Name, player2Name) {
-  const region = state.selectedServer === 'EU1' ? 'EU' : 'NA';
-  
-  const p1Stats = getPlayerStatsFromLeaderboards(player1Name, region);
-  const p2Stats = getPlayerStatsFromLeaderboards(player2Name, region);
-  
-  const result = calculateWinProbability(p1Stats, p2Stats);
-  state.battleMode.result = result;
-  
-  const renderPlayerBattle = (name, stats, prob, isWinner) => {
-    return `
-      <div class="battle-player">
-        <div class="battle-player-card">
-          <h3 class="battle-player-name">${escapeHtml(name)}</h3>
-          <div class="battle-stat-row">
-            <span class="battle-stat-label">Net Worth</span>
-            <span class="battle-stat-value">${stats.netWorth ? `#${stats.netWorth.rank}` : 'N/A'}</span>
-          </div>
-          <div class="battle-stat-row">
-            <span class="battle-stat-label">Crimes</span>
-            <span class="battle-stat-value">${stats.crimes ? `#${stats.crimes.rank}` : 'N/A'}</span>
-          </div>
-          <div class="battle-stat-row">
-            <span class="battle-stat-label">Arrests</span>
-            <span class="battle-stat-value">${stats.arrests ? `#${stats.arrests.rank}` : 'N/A'}</span>
-          </div>
-          <div class="battle-stat-row" style="border:none; margin-top:8px; padding-top:8px; border-top:0.5px solid var(--border);">
-            <span class="battle-stat-label">Battle Score</span>
-            <span class="battle-stat-value">${prob.toFixed(1)}/100</span>
-          </div>
-        </div>
-      </div>
-    `;
-  };
-  
-  const arena = document.getElementById('battle-arena');
-  arena.innerHTML = `
-    ${renderPlayerBattle(player1Name, p1Stats, result.score1, result.p1 > result.p2)}
-    ${renderPlayerBattle(player2Name, p2Stats, result.score2, result.p2 > result.p1)}
-    
-    <div class="battle-result">
-      <h3 style="margin: 0 0 12px; color: var(--text);">⚔️ WIN PROBABILITY</h3>
-      <div class="battle-probability">
-        <div class="battle-prob-badge ${result.p1 > result.p2 ? 'winner' : ''}">
-          ${escapeHtml(player1Name)}: ${result.p1}%
-        </div>
-        <div style="color: var(--text-tertiary); font-weight: bold;">VS</div>
-        <div class="battle-prob-badge ${result.p2 > result.p1 ? 'winner' : ''}">
-          ${result.p2}%: ${escapeHtml(player2Name)}
-        </div>
-      </div>
-      <p style="font-size:11px; color:var(--text-secondary); margin:12px 0 0;">Based on ${region} leaderboard rankings</p>
-    </div>
-  `;
-}
-
-function startBattle(playerName) {
-  state.battleMode.active = true;
-  state.battleMode.player1 = playerName;
-  state.battleMode.player2 = null;
-  
-  // Show modal asking for second player
-  const modal = document.getElementById('battle-modal');
-  const arena = document.getElementById('battle-arena');
-  
-  arena.innerHTML = `
-    <div style="grid-column:1/-1; text-align:center; padding:20px;">
-      <p style="color:var(--text-secondary); margin-bottom:12px;">Select opponent for</p>
-      <p style="font-family:var(--font-display); font-size:18px; color:var(--accent); margin:0;">${escapeHtml(playerName)}</p>
-      <p style="font-size:11px; color:var(--text-tertiary); margin-top:12px;">Click player names in the list to begin battle</p>
-    </div>
-  `;
-  
-  modal.style.display = 'flex';
-}
-
-function closeBattle() {
-  document.getElementById('battle-modal').style.display = 'none';
-  state.battleMode.active = false;
-  state.battleMode.player1 = null;
-  state.battleMode.player2 = null;
-  state.battleMode.result = null;
-}
 const state = {
   route: parseRoute(window.location.pathname),
   servers: null,
@@ -1869,12 +1545,6 @@ const state = {
   serversError: null,
   crewStats: {}, // crew aggregated stats (calculated from players)
   selectedCrew: null, // for crew detail view
-  battleMode: {
-    active: false,
-    player1: null,
-    player2: null,
-    result: null, // { p1, p2, score1, score2 }
-  },
 };
 
 // =============================================================================
@@ -2643,7 +2313,6 @@ function renderPlayerList() {
             ${joinedLabel ? `<span class="player-joined">${escapeHtml(joinedLabel)}</span>` : ''}
           </span>
           <span class="player-badges">${badgesHtml}</span>
-          <button class="battle-btn" data-battle="${escapeHtml(name)}" title="Start 1v1 battle">⚔️</button>
           <span class="ping">${ping}</span>
         </div>`;
       }).join('')}
@@ -3432,31 +3101,6 @@ document.addEventListener('click', e => {
     const next = current === 'light' ? 'dark' : 'light';
     document.documentElement.dataset.theme = next;
     try { localStorage.setItem('cnr-theme', next); } catch (e) {}
-  }
-  
-  // Battle modal close
-  if (e.target.closest('#battle-close') || e.target.closest('#battle-backdrop')) {
-    closeBattle();
-  }
-  
-  // Battle button click
-  if (e.target.closest('.battle-btn')) {
-    e.preventDefault();
-    const playerName = e.target.closest('.battle-btn').getAttribute('data-battle');
-    if (!state.battleMode.active) {
-      startBattle(playerName);
-    }
-  }
-  
-  // Player name click - start battle
-  if (e.target.closest('.player-name a')) {
-    e.preventDefault();
-    const link = e.target.closest('.player-name a');
-    const playerName = link.textContent.trim();
-    if (state.battleMode.active && !state.battleMode.player2) {
-      state.battleMode.player2 = playerName;
-      renderBattle(state.battleMode.player1, state.battleMode.player2);
-    }
   }
 });
 
