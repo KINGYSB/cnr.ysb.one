@@ -1423,6 +1423,7 @@ const CREW_MAP = {
   '94294478-2440-41ca-b6f7-feba147d78cd': 'TLC',
   '3059fbb5-1fa7-4dad-901d-2f7f216f2c0d': 'TXC',
   '93c34421-f57a-4284-a6bd-0984ec9b5097': 'YJSWT',
+  '05184147-0e11-4448-a4ee-068088114201': 'MET',
 };
 
 function getCrewTag(crewId) {
@@ -1890,6 +1891,17 @@ function renderServerPills() {
     const pB = onlineB ? liveB.Players : -1;
     return pB - pA;
   });
+  
+  // Auto-select server with most players on first load
+  if (!window._serverAutoSelected && ids.length > 0) {
+    const topServer = ids[0];
+    const live = state.servers.find(x => x.Id === topServer);
+    const lastHb = live ? (Date.now() - new Date(live.LastHeartbeatDateTime).getTime()) / 1000 : 999;
+    if (live && lastHb < 30 && live.Players > 0) {
+      state.selectedServer = topServer;
+      window._serverAutoSelected = true;
+    }
+  }
   return ids.map(id => {
     const s = CONFIG.SERVERS[id];
     const live = state.servers.find(x => x.Id === id);
