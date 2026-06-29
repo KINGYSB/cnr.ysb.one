@@ -788,15 +788,15 @@ async function fetchLeaderboardWithDedup(region, stat, page, env, url, origin) {
   return promise;
 }
 
-// Cleanup old backoff entries periodically
-setInterval(() => {
+// Cleanup old backoff entries periodically (done per-request instead of setInterval)
+function cleanupLeaderboardBackoff() {
   const now = Date.now();
   for (const [key, resetAt] of leaderboardBackoff.entries()) {
     if (now >= resetAt) {
       leaderboardBackoff.delete(key);
     }
   }
-}, 10000); // Clean every 10 seconds
+}
 
 async function handleLeaderboard(url, env, origin) {
   const region = url.searchParams.get('region');
@@ -1365,6 +1365,9 @@ function esc(s) {
 async function handleRequest(request, env) {
   const url    = new URL(request.url);
   const origin = request.headers.get('Origin') || '';
+
+  // Periodic cleanup of expired backoffs (do this occasionally per-request)
+  if (Math.random() < 0.1) cleanupLeaderboardBackoff(); // ~10% of requests
 
   if (request.method === 'OPTIONS') {
     return new Response(null, { status: 204, headers: cors(origin) });
