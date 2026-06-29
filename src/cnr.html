@@ -550,6 +550,14 @@ input { font: inherit; }
 .badge-cop { background: var(--badge-cop-bg); color: var(--badge-cop-fg); }
 .badge-arrest { background: var(--badge-arrest-bg); color: var(--badge-arrest-fg); }
 .badge-number { background: var(--badge-number-bg); color: var(--badge-number-fg); }
+.badge-crew {
+  background: var(--accent-dim);
+  color: var(--accent);
+  border: 0.5px solid var(--accent-border);
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
 
 /* ---------- Player list search ---------- */
 .player-search-bar {
@@ -1382,6 +1390,49 @@ const CONFIG = {
   ]
 };
 
+// =============================================================================
+// CREW MAPPING
+// =============================================================================
+const CREW_MAP = {
+  '0d10759b-89e9-4925-aa7c-a15aabf54f5a': '2WTC',
+  '34682bca-2e7f-432f-aa1e-3d4c3c593fd8': 'AOD',
+  '2bb8d565-2740-44ef-b296-97a2fe6b92eb': 'ARAB',
+  'd9132503-cabb-42c5-b628-93c9ea0d5b12': 'B-.-D-.-N',
+  '89d1b347-d24f-4fab-98e8-967da2bd1b23': 'BCŚP',
+  '5fa2a448-5fc2-4933-ac43-7ae427f16523': 'CMS',
+  'fd2cfb61-cf32-46d6-b72c-3bd8a296818f': 'F.Z.M.P',
+  '3065d425-00b4-41b7-861c-d50d2dddd59f': 'FAFO',
+  '66404055-1f30-4201-94cf-589fbe8082c1': 'FDP',
+  'e5c053b7-a5f1-4cf1-be3c-5ef284453b80': 'FOE',
+  '1fb586a8-3356-40ec-a070-5a7679c48486': 'L1NE',
+  '0f4fc698-1734-4155-be38-e5744e85995f': 'LCN',
+  '7c0acc2d-2b30-484a-8b87-ef552f042220': 'LEGION',
+  '4a6ce0b9-51af-46fd-ab49-cec231df4841': 'MAFIA',
+  'bdf22645-99a2-4733-bcb3-9f71c941a8f2': 'NBK',
+  'e4446bdc-1b07-4d7d-9437-7f9d2b8fdb70': 'OTK',
+  '9be3dceb-c3b1-4c2d-859c-4f947522bd67': 'P-B',
+  'aba854e4-dd85-439f-90be-077c80cda83e': 'pV',
+  '5af25511-e2ea-452e-8d88-5942ea0bc6df': 'RIP',
+  '48e7c7d2-2a2d-4e34-95c2-b34b7ec2dfa7': 'SAINTS',
+  '82d547c7-e5c5-4cda-aa11-a4ab0ed2d793': 'SFC',
+  'badde4a6-7ea8-44f2-b7c5-49fb7bc9b776': 'SK',
+  'a3403027-e4bd-4f96-83df-51117679fc80': 'SMA',
+  '5737d192-1804-4b52-b712-e06e12b1ce07': 'SS37',
+  '3de22f14-8d3a-42d5-b6a2-890789f168c8': 'STP',
+  'c1dd3892-c444-43d4-9911-a436cfe5edab': 'SWAT',
+  '94294478-2440-41ca-b6f7-feba147d78cd': 'TLC',
+  '3059fbb5-1fa7-4dad-901d-2f7f216f2c0d': 'TXC',
+  '93c34421-f57a-4284-a6bd-0984ec9b5097': 'YJSWT',
+};
+
+function getCrewTag(crewId) {
+  if (!crewId) return null;
+  const tag = CREW_MAP[crewId];
+  if (tag) return tag;
+  // Return placeholder for unknown crews (first 8 chars of ID)
+  return crewId.slice(0, 8).toUpperCase();
+}
+
 // build flat leaderboard lookup
 const LB_BY_ID = {};
 CONFIG.LEADERBOARDS.forEach(cat => {
@@ -2125,7 +2176,7 @@ function renderPlayerList() {
         return `<div class="list-row">
           <span class="rank">${i + 1}</span>
           <span class="player-name-wrap">
-            <span class="player-name"><a data-lookup="${escapeHtml(name)}">${escapeHtml(name)}</a></span>
+            <span class="player-name">${p?.CrewId && getCrewTag(p.CrewId) ? '<span class="badge badge-crew" style="margin-right:6px;">' + escapeHtml(getCrewTag(p.CrewId)) + '</span>' : ''}<a data-lookup="${escapeHtml(name)}">${escapeHtml(name)}</a></span>
             ${joinedLabel ? `<span class="player-joined">${escapeHtml(joinedLabel)}</span>` : ''}
           </span>
           <span class="player-badges">${badgesHtml}</span>
