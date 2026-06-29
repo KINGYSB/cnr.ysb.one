@@ -1028,7 +1028,168 @@ function isEmbedBot(request) {
 }
 
 // =============================================================================
-// NEW — Embed HTML  GET /embed  or  GET /embed/na1  (etc.)
+// NEW — Player Lookup Embed  GET /embed/player/{playerName}
+// Shows player's leaderboard stats, online status, and crew
+// =============================================================================
+async function handlePlayerEmbed(playerName, request, env) {
+  if (!playerName || playerName.length === 0) {
+    return err(400, 'Player name required', '');
+  }
+  
+  // Sanitize player name
+  const cleanName = playerName
+    .replace(/[\x00-\x1F\x7F]/g, '')
+    .normalize('NFKD')
+    .substring(0, 64);
+  
+  if (cleanName.length === 0) {
+    return err(400, 'Invalid player name', '');
+  }
+  
+  const isEmbedBot = BOT_UA_RE.test(request.headers.get('user-agent') || '');
+  const baseUrl = new URL(request.url).origin;
+  
+  try {
+    // Fetch all leaderboard data for NA and EU
+    const [naNetWorth, naCrimes, naArrests, euNetWorth, euCrimes, euArrests] = await Promise.all([
+      cached(env, 'lb:NA:net_worth:1', TTL.leaderboard, `${LEADERBOARD_API}/NA/net_worth/1`).catch(() => null),
+      cached(env, 'lb:NA:crimes_committed:1', TTL.leaderboard, `${LEADERBOARD_API}/NA/crimes_committed/1`).catch(() => null),
+      cached(env, 'lb:NA:arrests:1', TTL.leaderboard, `${LEADERBOARD_API}/NA/arrests/1`).catch(() => null),
+      cached(env, 'lb:EU:net_worth:1', TTL.leaderboard, `${LEADERBOARD_API}/EU/net_worth/1`).catch(() => null),
+      cached(env, 'lb:EU:crimes_committed:1', TTL.leaderboard, `${LEADERBOARD_API}/EU/crimes_committed/1`).catch(() => null),
+      cached(env, 'lb:EU:arrests:1', TTL.leaderboard, `${LEADERBOARD_API}/EU/arrests/1`).catch(() => null),
+    ]);
+    
+    // Check if player is online on any server
+    const [playersNA1, playersNA2, playersEU1] = await Promise.all([
+      cached(env, 'players:US1', TTL.players, `${PLAYERS_API}?serverId=US1`).catch(() => []),
+      cached(env, 'players:US2', TTL.players, `${PLAYERS_API}?serverId=US2`).catch(() => []),
+      cached(env, 'players:EU1', TTL.players, `${PLAYERS_API}?serverId=EU1`).catch(() => []),
+    ]);
+    
+    const findOnlinePlayer = (playersList) => {
+      if (!Array.isArray(playersList)) return null;
+      return playersList.find(p => {
+        const pname = typeof p?.Username === 'string' ? p.Username : p?.Username?.Username;
+        return pname && pname.toLowerCase() === cleanName.toLowerCase();
+      });
+    };
+    
+    const onlineNA1 = findOnlinePlayer(playersNA1);
+    const onlineNA2 = findOnlinePlayer(playersNA2);
+    const onlineEU1 = findOnlinePlayer(playersEU1);
+    
+    const onlineStatus = onlineNA1 ? 'NA1' : onlineNA2 ? 'NA2' : onlineEU1 ? 'EU1' : null;
+    const statusEmoji = onlineStatus ? '🟢' : '🔴';
+    const statusText = onlineStatus ? `ONLINE on ${onlineStatus}` : 'OFFLINE';
+    
+    const findPlayer = (stat, isEU = false) => {
+      const leaderboard = isEU ? (stat === 'net_worth' ? euNetWorth : stat === 'crimes_committed' ? euCrimes : euArrests) 
+                               : (stat === 'net_worth' ? naNetWorth : stat === 'crimes_committed' ? naCrimes : naArrests);
+      if (!leaderboard?.records) return null;
+      const idx = leaderboard.records.findIndex(r => r.accountName.toLowerCase() === cleanName.toLowerCase());
+      return idx >= 0 ? { rank: idx + 1, value: leaderboard.records[idx].value, region: isEU ? 'EU' : 'NA' } : null;
+    };
+    
+    // Search across both regions
+    const naStats = {
+      netWorth: findPlayer('net_worth', false),
+      crimes: findPlayer('crimes_committed', false),
+      arrests: findPlayer('arrests', false),
+    };
+    
+    const euStats = {
+      netWorth: findPlayer('net_worth', true),
+      crimes: findPlayer('crimes_committed', true),
+      arrests: findPlayer('arrests', true),
+    };
+    
+    // Check if player found in any stat
+    const allStats = [naStats.netWorth, naStats.crimes, naStats.arrests, euStats.netWorth, euStats.crimes, euStats.arrests];
+    const found = allStats.some(s => s !== null);
+    
+    if (!found && !onlineStatus) {
+      // Player not found in top 500 and not online
+      const html = `<!DOCTYPE html>
+<html>
+<head>
+  <title>CNR Tracker - ${esc(cleanName)}</title>
+  <meta name="description" content="Player not found">
+  <meta property="og:title" content="CNR Tracker · ${esc(cleanName)}">
+  <meta property="og:description" content="Player not found in top 500 leaderboards or currently online">
+  <meta property="og:type" content="website">
+  <meta name="theme-color" content="#ef4444">
+  <meta http-equiv="refresh" content="0; url=${esc(baseUrl)}/lookup?player=${encodeURIComponent(cleanName)}">
+</head>
+<body>Redirecting…</body>
+</html>`;
+      return new Response(html, {
+        headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'public, max-age=60' },
+      });
+    }
+    
+    // Format stats for display
+    const formatStat = (stat, label) => {
+      if (!stat) return '';
+      return `${label}: #${stat.rank} (${stat.region === 'EU' ? '🇪🇺 EU' : '🌎 NA'})`;
+    };
+    
+    const statsDisplay = [
+      formatStat(naStats.netWorth || euStats.netWorth, 'Net Worth'),
+      formatStat(naStats.crimes || euStats.crimes, 'Crimes'),
+      formatStat(naStats.arrests || euStats.arrests, 'Arrests'),
+    ].filter(Boolean);
+    
+    const statsText = statsDisplay.length > 0 
+      ? `Top 500 Leaderboard Stats:\n${statsDisplay.join('\n')}`
+      : 'Not ranked in top 500 (but currently online)';
+    
+    const disclaimerText = statsDisplay.length > 0 && !onlineStatus
+      ? '*Only players ranked in top 500 are available*'
+      : '';
+    
+    const title = `CNR Tracker · ${cleanName}`;
+    const description = `${statusEmoji} ${statusText}\n**${cleanName}**\n${statsText}${disclaimerText ? '\n\n' + disclaimerText : ''}`;
+    
+    const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>${esc(title)}</title>
+  <meta name="description" content="${esc(description)}">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="${esc(request.url)}">
+  <meta property="og:title" content="${esc(title)}">
+  <meta property="og:description" content="${esc(description)}">
+  <meta property="og:image" content="${baseUrl}/favicon.svg">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="${esc(title)}">
+  <meta name="twitter:description" content="${esc(description)}">
+  <meta name="theme-color" content="${onlineStatus ? '#22c55e' : '#ef4444'}">
+  <meta http-equiv="refresh" content="0; url=${esc(baseUrl)}/lookup?player=${encodeURIComponent(cleanName)}">
+  <style>
+    body { background:#0a0a0b; color:#fafafa; font-family:system-ui,sans-serif;
+           display:flex; align-items:center; justify-content:center;
+           height:100vh; margin:0; }
+    a { color:#f59e0b; }
+  </style>
+</head>
+<body>
+  <p>Redirecting to <a href="${esc(baseUrl)}/lookup?player=${encodeURIComponent(cleanName)}">CNR Tracker</a>…</p>
+</body>
+</html>`;
+    
+    return new Response(html, {
+      headers: {
+        'Content-Type': 'text/html; charset=utf-8',
+        'Cache-Control': `public, max-age=60, stale-while-revalidate=30`,
+      },
+    });
+  } catch (e) {
+    console.error('player embed error', e);
+    return err(500, 'Failed to generate player embed', '');
+  }
+}
 // Discord reads <head> OG tags. Real browsers get a meta-refresh to the SPA.
 // =============================================================================
 async function handleEmbed(serverId, request, env) {
@@ -1503,6 +1664,13 @@ async function handleRequest(request, env) {
     const raw      = (embedSvgMatch[1] || '').toUpperCase();
     const serverId = SERVER_META[raw] ? raw : null;
     return handleEmbedSvg(serverId, env, request);
+  }
+  // ─────────────────────────────────────────────────────────────────────────
+  // Player lookup embed
+  const playerEmbedMatch = url.pathname.match(/^\/embed\/player\/?(.+)$/i);
+  if (playerEmbedMatch) {
+    const playerName = decodeURIComponent(playerEmbedMatch[1]).trim();
+    return handlePlayerEmbed(playerName, request, env);
   }
   // ─────────────────────────────────────────────────────────────────────────
 
