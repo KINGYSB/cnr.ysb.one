@@ -297,6 +297,11 @@ async function fetchViaIp(originalUrl) {
 
 // Tier 3: module-level memory cache (survives within a single isolate)
 const memCache = new Map();
+
+// Rate limiter state for leaderboard API (gtacnr.net has 2 reqs per 5 sec limit)
+const LEADERBOARD_RATE_LIMIT = { requests: 2, window: 5000 }; // 2 reqs per 5 sec
+const leaderboardInflight = new Map();
+const leaderboardBackoff = new Map(); // key -> resetAtMs
 const ENABLE_KV_WRITES = true;
 
 // Safe KV wrapper — returns null instead of throwing on 429 or quota errors
@@ -716,6 +721,83 @@ async function handlePlayers(url, env, origin) {
   return json(data, TTL.players, origin);
 }
 
+// =============================================================================
+// Rate Limit Handling for Leaderboard API (2 reqs per 5 sec)
+// =============================================================================
+
+function getLeaderboardBackoffKey(region, stat, page) {
+  return `lb:${region}:${stat}:${page}`;
+}
+
+function isLeaderboardInBackoff(key) {
+  const backoffUntil = leaderboardBackoff.get(key);
+  if (!backoffUntil) return false;
+  if (Date.now() >= backoffUntil) {
+    leaderboardBackoff.delete(key);
+    return false;
+  }
+  return true;
+}
+
+function setLeaderboardBackoff(key, durationMs = 6000) {
+  leaderboardBackoff.set(key, Date.now() + durationMs);
+}
+
+async function fetchLeaderboardWithDedup(region, stat, page, env, url, origin) {
+  const key = getLeaderboardBackoffKey(region, stat, page);
+  
+  // Check if in backoff — serve from cache if available
+  if (isLeaderboardInBackoff(key)) {
+    console.log(`[RateLimit] ${key} in backoff, serving from cache`);
+    try {
+      const cached_data = await cached(env, key, TTL.leaderboard, url);
+      return json(cached_data, TTL.leaderboard, origin);
+    } catch (e) {
+      // Cache miss during backoff
+      return err(429, `Rate limited. Retry after ${(leaderboardBackoff.get(key) - Date.now()) / 1000}s`, origin);
+    }
+  }
+  
+  // Deduplicate inflight requests — if already fetching, return same promise
+  if (leaderboardInflight.has(key)) {
+    console.log(`[RateLimit] ${key} deduplicating with inflight request`);
+    return leaderboardInflight.get(key);
+  }
+  
+  // Launch new fetch
+  const promise = (async () => {
+    try {
+      const data = await cached(
+        env, key, TTL.leaderboard,
+        `${LEADERBOARD_API}/${region}/${stat}/${page}`
+      );
+      return json(data, TTL.leaderboard, origin);
+    } catch (e) {
+      // Check if it's a rate limit error (429)
+      if (e.status === 429 || (e.response && e.response.status === 429)) {
+        console.warn(`[RateLimit] Hit 429, backing off for ${key}`);
+        setLeaderboardBackoff(key, 6000); // Back off for 6 seconds
+      }
+      throw e;
+    }
+  })();
+  
+  leaderboardInflight.set(key, promise);
+  promise.finally(() => leaderboardInflight.delete(key));
+  
+  return promise;
+}
+
+// Cleanup old backoff entries periodically
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, resetAt] of leaderboardBackoff.entries()) {
+    if (now >= resetAt) {
+      leaderboardBackoff.delete(key);
+    }
+  }
+}, 10000); // Clean every 10 seconds
+
 async function handleLeaderboard(url, env, origin) {
   const region = url.searchParams.get('region');
   const stat   = url.searchParams.get('stat');
@@ -724,11 +806,9 @@ async function handleLeaderboard(url, env, origin) {
   if (!/^[A-Za-z_0-9]+$/.test(stat) || !/^[A-Z]+$/.test(region) || !/^\d+$/.test(page)) {
     return err(400, 'Invalid parameters', origin);
   }
-  const data = await cached(
-    env, `lb:${region}:${stat}:${page}`, TTL.leaderboard,
-    `${LEADERBOARD_API}/${region}/${stat}/${page}`
-  );
-  return json(data, TTL.leaderboard, origin);
+  
+  return await fetchLeaderboardWithDedup(region, stat, page, env, 
+    `${LEADERBOARD_API}/${region}/${stat}/${page}`, origin);
 }
 
 async function handleFivem(url, env, origin) {
@@ -846,10 +926,56 @@ async function _fetchEmbedStatusImpl(env) {
     EU1: Array.isArray(playersEU1) ? playersEU1.length : 0,
   };
 
-  const topPlayersFrom = players => {
+  // Build crew maps: CrewId -> crew tag name (extract first player from each crew)
+  const buildCrewMap = players => {
+    const map = {};
+    if (Array.isArray(players)) {
+      players.forEach(p => {
+        const crewId = p?.CrewId;
+        if (crewId && !map[crewId]) {
+          // Use crew ID as shorthand for now (can be extended to fetch crew names if API provides them)
+          map[crewId] = crewId.substring(0, 8).toUpperCase();
+        }
+      });
+    }
+    return map;
+  };
+
+  const crewsNA1 = buildCrewMap(playersNA1);
+  const crewsNA2 = buildCrewMap(playersNA2);
+  const crewsEU1 = buildCrewMap(playersEU1);
+
+  const topPlayersFrom = (players, crewMap = {}) => {
     if (!Array.isArray(players) || !players.length) return [];
     return players
-      .map(p => p?.Username?.Username || p?.Username?.username || p?.name || p?.Name || p?.nameTag)
+      .map(p => {
+        let name = null;
+        // New format: Username is directly a string
+        if (typeof p?.Username === 'string') name = p.Username;
+        // Old format: nested structure
+        else if (p?.Username?.Username) name = p.Username.Username;
+        else if (p?.Username?.username) name = p.Username.username;
+        // Fallback to other possible field names
+        else if (p?.name) name = p.name;
+        else if (p?.Name) name = p.Name;
+        else if (p?.nameTag) name = p.nameTag;
+        
+        if (!name) return null;
+        
+        // Sanitize name: remove control chars, normalize unicode, clip length
+        name = name
+          .replace(/[\x00-\x1F\x7F]/g, '') // remove control chars
+          .normalize('NFKD') // normalize combining chars
+          .substring(0, 32); // max 32 chars per name
+        
+        if (!name.length) return null;
+        
+        // Attach crew tag if available
+        const crewId = p?.CrewId;
+        const crewTag = crewId && crewMap[crewId] ? crewMap[crewId] : null;
+        
+        return { name, crewTag };
+      })
       .filter(Boolean)
       .slice(0, 3);
   };
@@ -885,7 +1011,7 @@ async function _fetchEmbedStatusImpl(env) {
       label:      SERVER_META[id].label,
       location:   SERVER_META[id].location,
       avgPing:    id === 'NA1' ? avgPingFromFivem(fivemNA1) : id === 'NA2' ? avgPingFromFivem(fivemNA2) : avgPingFromFivem(fivemEU1),
-      topPlayers: id === 'NA1' ? topPlayersFrom(playersNA1) : id === 'NA2' ? topPlayersFrom(playersNA2) : topPlayersFrom(playersEU1),
+      topPlayers: id === 'NA1' ? topPlayersFrom(playersNA1, crewsNA1) : id === 'NA2' ? topPlayersFrom(playersNA2, crewsNA2) : topPlayersFrom(playersEU1, crewsEU1),
     };
   }
 
@@ -919,22 +1045,25 @@ async function handleEmbed(serverId, request, env) {
   if (serverId && status[serverId]) {
     const s         = status[serverId];
     const state     = s.restarting ? 'Restarting' : s.online ? 'Online' : 'Offline';
-    const emoji     = s.restarting ? '🟠' : s.online ? '🟢' : '🔴';
+    const emojiChar = s.restarting ? '🟠' : s.online ? '🟢' : '🔴';
     themeColor      = s.restarting ? COLOR_RESTART : s.online ? COLOR_ONLINE : COLOR_OFFLINE;
-    title           = `CNR Tracker · ${serverId} · ${emoji} ${state}`;
+    title           = `CNR Tracker · ${serverId} · ${emojiChar} ${state}`;
 
     const others = Object.entries(status)
       .filter(([id]) => id !== serverId)
-      .map(([id, sv]) => `${id}: ${sv.online ? `${sv.players}/${sv.maxPlayers}` : 'offline'}`)
-      .join('  ·  ');
+      .map(([id, sv]) => {
+        const e = sv.restarting ? '🟠' : sv.online ? '🟢' : '🔴';
+        return `${e} ${id}: ${sv.online ? `${sv.players}/${sv.maxPlayers}` : 'Offline'}`;
+      })
+      .join('\n');
 
-    const topPlayers = s.topPlayers && s.topPlayers.length
-      ? `\n\n**Top players:**\n${s.topPlayers.map(name => `- ${name}`).join('\n')}`
+    const topPlayersList = s.topPlayers && s.topPlayers.length > 0
+      ? `\nTop Players:\n${s.topPlayers.map(p => `  • ${p.crewTag ? `[${p.crewTag}] ` : ''}${p.name}`).join('\n')}`
       : '';
 
     description = s.online
-      ? `**${serverId}** · ${s.players}/${s.maxPlayers} online${topPlayers}\n\n${others}`
-      : `**${serverId}** is currently **${state.toLowerCase()}**${topPlayers}\n\n${others}`;
+      ? `${emojiChar} ${serverId} Status: ONLINE\n${s.players}/${s.maxPlayers} Players\n\nOther Servers:\n${others}${topPlayersList}`
+      : `${emojiChar} ${serverId} Status: ${state.toUpperCase()}\n\nOther Servers:\n${others}${topPlayersList}`;
   } else {
     // Overview embed — all servers
     const anyOnline    = Object.values(status).some(s => s.online);
@@ -943,9 +1072,10 @@ async function handleEmbed(serverId, request, env) {
     title       = 'CNR Tracker · Live Server Status';
     description = Object.entries(status)
       .map(([id, s]) => {
-        const emoji = s.restarting ? '🟠' : s.online ? '🟢' : '🔴';
-        return `${emoji} **${id}**: ${s.online ? `${s.players}/${s.maxPlayers} players` : '**offline**'}`;
-      }).join('\n') + `\n\nTotal: ${totalPlayers} players online`;
+        const e = s.restarting ? '🟠' : s.online ? '🟢' : '🔴';
+        const status_text = s.restarting ? 'Restarting' : s.online ? `${s.players}/${s.maxPlayers} Online` : 'Offline';
+        return `${e} ${id}: ${status_text}`;
+      }).join('\n') + `\n\nTotal: ${totalPlayers} players`;
   }
 
   const html = `<!DOCTYPE html>
@@ -1060,9 +1190,6 @@ function buildSingleSvg(id, s, baseUrl) {
   const dotCol    = s.restarting ? COLOR_RESTART : s.online ? COLOR_ONLINE : '#52525b';
   const stateText = s.restarting ? 'RESTARTING'  : s.online ? 'ONLINE'     : 'OFFLINE';
   const pct       = s.online ? Math.min(s.players / s.maxPlayers, 1) : 0;
-  const barFill   = (680 * pct).toFixed(1);
-  const utcStamp  = formatUtcStamp();
-  const avgPing   = s.avgPing != null ? `${s.avgPing} ms` : 'n/a';
   const fontCss   = getSvgFontFaceCss(baseUrl);
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
@@ -1080,66 +1207,48 @@ ${fontCss}
   <rect width="${W}" height="${H}" fill="url(#g)"/>
 
   <!-- Top accent bar, colored by status -->
-  <rect x="0" y="0" width="${W}" height="4" fill="${dotCol}"/>
+  <rect x="0" y="0" width="${W}" height="6" fill="${dotCol}"/>
   <!-- Left accent line -->
-  <rect x="0" y="0" width="4" height="${H}" fill="${dotCol}" opacity="0.3"/>
+  <rect x="0" y="0" width="6" height="${H}" fill="${dotCol}" opacity="0.4"/>
 
-  <!-- Status dot -->
-  <circle cx="108" cy="108" r="13" fill="${dotCol}"/>
-  ${s.online ? `<circle cx="108" cy="108" r="21" fill="none" stroke="${dotCol}" stroke-width="1.5" opacity="0.3"/>` : ''}
+  <!-- Status dot (left side, bigger) -->
+  <circle cx="130" cy="130" r="16" fill="${dotCol}"/>
+  ${s.online ? `<circle cx="130" cy="130" r="26" fill="none" stroke="${dotCol}" stroke-width="2" opacity="0.25"/>` : ''}
 
-  <!-- Server ID -->
-  <text x="142" y="125" font-family="${SVG_FONTS.display}"
-        font-size="76" font-weight="900" letter-spacing="4" fill="${COLOR_TEXT}">${id}</text>
+  <!-- Server ID (prominent) -->
+  <text x="180" y="155" font-family="${SVG_FONTS.display}"
+        font-size="96" font-weight="900" letter-spacing="6" fill="${COLOR_TEXT}">${id}</text>
 
-  <!-- Status pill -->
-  <rect x="144" y="148" width="${stateText.length * 11 + 26}" height="30" rx="5"
-        fill="${dotCol}" opacity="0.12"/>
-  <rect x="144" y="148" width="${stateText.length * 11 + 26}" height="30" rx="5"
-        fill="none" stroke="${dotCol}" stroke-width="0.8"/>
-  <text x="157" y="168" font-family="${SVG_FONTS.mono}" font-size="12" font-weight="700"
-        letter-spacing="3" fill="${dotCol}">${stateText}</text>
+  <!-- Status pill (below ID) -->
+  <rect x="180" y="172" width="${stateText.length * 13 + 28}" height="32" rx="6"
+        fill="${dotCol}" opacity="0.14"/>
+  <rect x="180" y="172" width="${stateText.length * 13 + 28}" height="32" rx="6"
+        fill="none" stroke="${dotCol}" stroke-width="1"/>
+  <text x="194" y="195" font-family="${SVG_FONTS.mono}" font-size="13" font-weight="700"
+        letter-spacing="2" fill="${dotCol}">${stateText}</text>
 
-  <!-- Region label -->
-    <text x="145" y="222" font-family="${SVG_FONTS.mono}" font-size="14" letter-spacing="2"
-        fill="${COLOR_MUTED}">${s.label.toUpperCase()}</text>
+  <!-- Hero player number (center, massive) -->
+  <text x="600" y="420" text-anchor="middle" font-family="${SVG_FONTS.display}"
+        font-size="280" font-weight="900" fill="${COLOR_TEXT}" letter-spacing="-8">${s.players}</text>
 
-    <!-- Location -->
-    <text x="145" y="244" font-family="${SVG_FONTS.mono}" font-size="12" letter-spacing="2"
-      fill="${COLOR_MUTED}">LOCATION · ${s.location}</text>
+  <!-- Capacity label (below player count) -->
+  <text x="600" y="470" text-anchor="middle" font-family="${SVG_FONTS.mono}" 
+        font-size="28" fill="${COLOR_MUTED}">/ ${s.maxPlayers} players</text>
 
-    <!-- Snapshot time + server ping -->
-    <rect x="145" y="252" width="420" height="32" rx="6" fill="${COLOR_SURFACE}" stroke="${COLOR_BORDER}" stroke-width="0.5"/>
-    <text x="160" y="273" font-family="${SVG_FONTS.mono}" font-size="12" font-weight="700" letter-spacing="2"
-      fill="${COLOR_MUTED}">UTC SNAPSHOT · ${utcStamp} · AVG PING ${avgPing}</text>
-
-  <!-- Hero player number -->
-    <text x="76" y="400" font-family="${SVG_FONTS.display}"
-        font-size="210" font-weight="900" fill="${COLOR_TEXT}">${s.players}</text>
-
-  <!-- /max suffix -->
-    <text x="76" y="448" font-family="${SVG_FONTS.mono}" font-size="26" fill="${COLOR_MUTED}">/ ${s.maxPlayers} max players</text>
-
-  <!-- Progress bar track -->
-  <rect x="76" y="474" width="680" height="9" rx="4.5" fill="${COLOR_BORDER}"/>
-  ${+barFill > 0 ? `<rect x="76" y="474" width="${barFill}" height="9" rx="4.5" fill="${dotCol}"/>` : ''}
-  <!-- Pct label next to bar -->
-  ${s.online ? `<text x="${76 + +barFill + 14}" y="482"
-      font-family="${SVG_FONTS.mono}" font-size="13" fill="${COLOR_MUTED}"
-        dominant-baseline="middle">${Math.round(pct * 100)}%</text>` : ''}
+  <!-- Progress bar (bottom half) -->
+  <rect x="76" y="520" width="1048" height="14" rx="7" fill="${COLOR_BORDER}"/>
+  ${+pct > 0 ? `<rect x="76" y="520" width="${(1048 * pct).toFixed(1)}" height="14" rx="7" fill="${dotCol}"/>` : ''}
 
   <!-- Watermark logo (top-right) -->
-    <text x="${W - 72}" y="108" text-anchor="end" font-family="${SVG_FONTS.display}"
-        font-size="28" font-weight="900" letter-spacing="2"
-        fill="${COLOR_TEXT}" opacity="0.3">CNR<tspan fill="${COLOR_ACCENT}">TRACKER</tspan></text>
-    <text x="${W - 72}" y="132" text-anchor="end" font-family="${SVG_FONTS.mono}"
-        font-size="11" letter-spacing="2" fill="${COLOR_MUTED}" opacity="0.5">ysb.one/utils/cnr</text>
+  <text x="${W - 72}" y="80" text-anchor="end" font-family="${SVG_FONTS.display}"
+        font-size="32" font-weight="900" letter-spacing="3"
+        fill="${COLOR_TEXT}" opacity="0.25">CNR<tspan fill="${COLOR_ACCENT}">TRACKER</tspan></text>
 
   <!-- Footer -->
-    <text x="76" y="${H - 28}" font-family="${SVG_FONTS.mono}" font-size="11" letter-spacing="2"
+  <text x="76" y="${H - 24}" font-family="${SVG_FONTS.mono}" font-size="12" letter-spacing="2"
         fill="${COLOR_MUTED}">LIVE · GTA CRIME AND ROBBERY</text>
-    <text x="${W - 72}" y="${H - 28}" text-anchor="end" font-family="${SVG_FONTS.mono}"
-      font-size="11" letter-spacing="2" fill="${COLOR_MUTED}">gtacnr.net · fivem.net</text>
+  <text x="${W - 72}" y="${H - 24}" text-anchor="end" font-family="${SVG_FONTS.mono}"
+        font-size="12" letter-spacing="2" fill="${COLOR_MUTED}">gtacnr.net · fivem.net</text>
 </svg>`;
 }
 
@@ -1428,6 +1537,10 @@ async function handleRequest(request, env) {
 // =============================================================================
 async function handleScheduled(env) {
   try {
+    // Add jitter (±30 seconds) to prevent thundering herd exactly at cron time
+    const jitter = Math.random() * 60000 - 30000; // -30s to +30s
+    if (jitter > 0) await new Promise(r => setTimeout(r, jitter));
+    
     const data = await fetchWithFallback(SERVERS_API);
     if (!Array.isArray(data)) return;
     const now     = new Date();
