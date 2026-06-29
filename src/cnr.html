@@ -497,7 +497,7 @@ input { font: inherit; }
 }
 .list-row {
   display: grid;
-  grid-template-columns: 32px 1fr auto auto;
+  grid-template-columns: 32px 1fr auto auto auto;
   gap: 12px;
   align-items: center;
   padding: 9px 4px;
@@ -521,6 +521,25 @@ input { font: inherit; }
 }
 .list-row .player-name a { color: inherit; cursor: pointer; }
 .list-row .player-name a:hover { color: var(--accent-bright); }
+
+/* Battle button */
+.battle-btn {
+  background: transparent;
+  border: 0.5px solid var(--accent-border);
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: 4px 8px;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+.battle-btn:hover {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+  box-shadow: 0 0 6px rgba(245, 158, 11, 0.2);
+}
 .player-badges {
   display: flex;
   gap: 4px;
@@ -2514,6 +2533,7 @@ function renderPlayerList() {
             ${joinedLabel ? `<span class="player-joined">${escapeHtml(joinedLabel)}</span>` : ''}
           </span>
           <span class="player-badges">${badgesHtml}</span>
+          <button class="battle-btn" data-battle="${escapeHtml(name)}" title="Start 1v1 battle">⚔️</button>
           <span class="ping">${ping}</span>
         </div>`;
       }).join('')}
@@ -3272,15 +3292,23 @@ document.addEventListener('click', e => {
     closeBattle();
   }
   
+  // Battle button click
+  if (e.target.closest('.battle-btn')) {
+    e.preventDefault();
+    const playerName = e.target.closest('.battle-btn').getAttribute('data-battle');
+    if (!state.battleMode.active) {
+      startBattle(playerName);
+    }
+  }
+  
   // Player name click - start battle
   if (e.target.closest('.player-name a')) {
     e.preventDefault();
-    const playerName = e.target.closest('.player-name a').textContent;
+    const link = e.target.closest('.player-name a');
+    const playerName = link.textContent.trim();
     if (state.battleMode.active && !state.battleMode.player2) {
       state.battleMode.player2 = playerName;
       renderBattle(state.battleMode.player1, state.battleMode.player2);
-    } else if (!state.battleMode.active) {
-      startBattle(playerName);
     }
   }
 });
